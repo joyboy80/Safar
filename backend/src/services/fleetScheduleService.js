@@ -727,3 +727,4 @@ export async function getUserDashboardSchedules(user, date = todayDate()) {
         : "Scheduled",
     }));
 }
+

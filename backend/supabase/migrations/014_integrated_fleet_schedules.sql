@@ -105,3 +105,4 @@ create unique index if not exists transport_schedules_active_driver_slot_unique
 drop trigger if exists transport_assignments_validate on public.transport_assignments;
 
 notify pgrst, 'reload schema';
+

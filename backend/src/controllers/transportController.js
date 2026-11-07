@@ -403,7 +403,48 @@ export const putAdminDriver = asyncHandler(async (req, res) => sendSuccess(res, 
 export const getMaintenance = asyncHandler(async (_req, res) => sendSuccess(res, { data: { maintenance: await maintenanceRecords() } }));
 export const putMaintenance = asyncHandler(async (req, res) => sendSuccess(res, { data: { maintenance: await updateMaintenance(req.params.id, req.body) } }));
 export const getAlerts = asyncHandler(async (_req, res) => sendSuccess(res, { data: { alerts: await operationalAlerts() } }));
-export const getOverview = asyncHandler(async (_req, res) => sendSuccess(res, { data: { overview: await adminOverview() } }));
+export const getOverview = asyncHandler(async (_req, res) => {
+  const [fleetBuses, fleetSchedules, baseOverview] = await Promise.all([
+    listAllBuses().catch(() => []),
+    listAllSchedules().catch(() => []),
+    adminOverview().catch(() => ({ stats: {} })),
+  ]);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const activeBuses = fleetBuses.filter((b) => (b.operationalStatus || b.status) === "Online" || (b.operationalStatus || b.status) === "Running");
+  const maintenanceBuses = fleetBuses.filter((b) => (b.operationalStatus || b.status) === "Maintenance");
+  const todayTrips = fleetSchedules.filter((s) => s.scheduleDate === today && s.scheduleStatus !== "Cancelled");
+
+  const mergedOverview = {
+    ...baseOverview,
+    buses: fleetBuses.map((b) => ({
+      id: b.id,
+      name: b.name || b.busName,
+      number: b.number || b.registrationNumber,
+      category: b.category,
+      capacity: b.capacity,
+      status: b.operationalStatus || b.status || "Online",
+      currentLocation: { label: "CUET Transport Yard", lat: 22.4633, lng: 91.9745 },
+    })),
+    schedules: fleetSchedules.map((s) => ({
+      id: s.id,
+      busName: s.busName,
+      departureTime: s.departureTime,
+      route: s.routeName,
+      date: s.scheduleDate,
+      status: s.scheduleStatus,
+    })),
+    stats: {
+      ...baseOverview.stats,
+      totalBuses: fleetBuses.length,
+      activeBuses: activeBuses.length,
+      todayTrips: todayTrips.length,
+      maintenanceBuses: maintenanceBuses.length,
+    },
+  };
+
+  return sendSuccess(res, { data: { overview: mergedOverview } });
+});
 export const getAnalytics = asyncHandler(async (_req, res) => sendSuccess(res, { data: { analytics: await adminAnalytics() } }));
 
 export const getPredictionsOccupancy = asyncHandler(async (_req, res) => sendSuccess(res, { data: { predictions: await getOccupancyPredictions() } }));

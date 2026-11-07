@@ -20,14 +20,14 @@ export default function AdminDashboard() {
 
   const stats = overview?.stats || {};
   const statCards = [
-    [BusFront, "Total Buses", stats.totalBuses || 0, "Registered fleet"],
-    [BusFront, "Active Buses", stats.activeBuses || 0, "Available for operations"],
-    [CalendarDays, "Today's Trips", stats.todayTrips || 0, "Scheduled departures"],
-    [ClipboardCheck, "Reservations", stats.totalReservations || 0, "Active bookings"],
+    [BusFront, "Total Buses", stats.totalBuses || 0, "Registered fleet", "/admin/buses"],
+    [BusFront, "Active Buses", stats.activeBuses || 0, "Available for operations", "/admin/buses"],
+    [CalendarDays, "Today's Trips", stats.todayTrips || 0, "Scheduled departures", "/admin/schedules"],
+    [ClipboardCheck, "Reservations", stats.totalReservations || 0, "Active bookings", "/admin/reservations"],
     [Users, "University Users", stats.totalUsers || 0, "Registered accounts", "/admin/users"],
     [Armchair, "Available Seats", stats.availableSeats || 0, "Across all buses"],
     [AlertTriangle, "Delayed Buses", stats.delayedBuses || 0, "Needs monitoring"],
-    [Wrench, "Maintenance", stats.maintenanceBuses || 0, "Under maintenance"],
+    [Wrench, "Maintenance", stats.maintenanceBuses || 0, "Under maintenance", "/admin/maintenance"],
   ];
 
   return (
@@ -111,7 +111,7 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-            <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-safar-ink">Fleet overview</h2><Link className="text-sm font-bold text-safar-teal" to="/admin/fleet">Open fleet</Link></div>
+            <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-safar-ink">Fleet overview</h2><Link className="text-sm font-bold text-safar-teal" to="/admin/buses">Manage Buses</Link></div>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {(overview?.buses || []).slice(0, 6).map((bus) => (
                 <div key={bus.id} className="rounded-xl bg-slate-50 p-3"><p className="font-bold text-safar-ink">{bus.name}</p><p className="mt-1 text-xs text-safar-gray">{bus.currentLocation.label}</p><div className="mt-2"><AdminStatusBadge status={bus.status} /></div></div>
