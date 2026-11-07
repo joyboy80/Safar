@@ -79,15 +79,8 @@ function reservationInput(body = {}) {
 }
 
 export const buses = asyncHandler(async (req, res) => {
-  const [scheduledBuses, baseBuses] = await Promise.all([
-    getUserDashboardSchedules(req.user, req.query.date).catch(() => []),
-    listBuses(req.user, undefined, req.query.date).catch(() => []),
-  ]);
-  const combined = [
-    ...scheduledBuses,
-    ...baseBuses.filter((b) => !scheduledBuses.some((sb) => sb.busId === b.id || sb.id === b.id)),
-  ];
-  return sendSuccess(res, { data: { buses: combined } });
+  const scheduledBuses = await getUserDashboardSchedules(req.user, req.query.date).catch(() => []);
+  return sendSuccess(res, { data: { buses: scheduledBuses } });
 });
 export const bus = asyncHandler(async (req, res) => {
   const result = await listBuses(req.user, req.params.id, req.query.date);

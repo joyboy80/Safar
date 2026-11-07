@@ -788,32 +788,57 @@ export async function getUserDashboardSchedules(user, date = todayDate()) {
     return allowedCategories.includes(s.busCategory);
   });
 
-  return eligibleSchedules.map((s) => ({
-    id: s.busId,
-    busId: s.busId,
-    scheduleId: s.id,
-    tripId: s.id,
-    name: s.busName,
-    busName: s.busName,
-    busNumber: s.registrationNumber,
-    registrationNumber: s.registrationNumber,
-    category: s.busCategory,
-    busCategory: s.busCategory,
-    type: s.busCategory,
-    capacity: s.capacity,
-    availableSeats: s.capacity,
-    route: s.routeName,
-    routeName: s.routeName,
-    routeDirection: s.routeDirection,
-    departureTime: s.departureTime,
-    arrivalTime: s.departureTime,
-    scheduleDate: s.scheduleDate,
-    driverName: s.driverName,
-    busOperationalStatus: s.currentBusStatus,
-    scheduleStatus: s.scheduleStatus,
-    status: s.scheduleStatus === SCHEDULE_STATUSES.RUNNING ? "In Progress"
-      : s.scheduleStatus === SCHEDULE_STATUSES.COMPLETED ? "Completed"
-      : "Scheduled",
-  }));
+  // Calculate actual reserved seat counts for each scheduled trip
+  const admin = getSupabaseAdmin();
+  const scheduleIds = eligibleSchedules.map((s) => s.id);
+  const reservedCountMap = new Map();
+  if (scheduleIds.length > 0) {
+    const { data: reservedSeatsData } = await admin
+      .from("reservations")
+      .select("trip_id")
+      .in("trip_id", scheduleIds)
+      .eq("travel_date", date)
+      .neq("status", "Cancelled");
+
+    (reservedSeatsData || []).forEach((r) => {
+      reservedCountMap.set(r.trip_id, (reservedCountMap.get(r.trip_id) || 0) + 1);
+    });
+  }
+
+  return eligibleSchedules.map((s) => {
+    const booked = reservedCountMap.get(s.id) || 0;
+    const capacity = s.capacity || 40;
+    const availableSeats = Math.max(0, capacity - booked);
+
+    return {
+      id: s.id,
+      scheduleId: s.id,
+      tripId: s.id,
+      busId: s.busId,
+      name: s.busName,
+      busName: s.busName,
+      busNumber: s.registrationNumber,
+      registrationNumber: s.registrationNumber,
+      category: s.busCategory,
+      busCategory: s.busCategory,
+      type: s.busCategory,
+      capacity,
+      availableSeats,
+      route: s.routeName,
+      routeName: s.routeName,
+      routeDirection: s.routeDirection,
+      departureTime: s.departureTime,
+      arrivalTime: s.departureTime,
+      scheduleDate: s.scheduleDate,
+      driverName: s.driverName,
+      busOperationalStatus: s.currentBusStatus,
+      scheduleStatus: s.scheduleStatus,
+      status: s.scheduleStatus === SCHEDULE_STATUSES.RUNNING ? "In Progress"
+        : s.scheduleStatus === SCHEDULE_STATUSES.COMPLETED ? "Completed"
+        : "Scheduled",
+      nextStop: s.routeName ? s.routeName.split("—")[0].trim() : "CUET Campus",
+      eta: "On schedule",
+    };
+  });
 }
 

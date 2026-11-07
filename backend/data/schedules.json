@@ -1,5 +1,27 @@
 [
   {
+    "id": "SCH-FF63C36F",
+    "scheduleId": "SCH-FF63C36F",
+    "busId": "BUS-9442CF21",
+    "busName": "Ichamoti",
+    "registrationNumber": "CUET-2",
+    "busCategory": "Female Student Bus",
+    "capacity": 40,
+    "driverId": "563cef67-1c98-4d18-8f2b-b5e10c43b6b0",
+    "driverName": "Tasin Uddin",
+    "routeId": "STATION_CUET_BAHADDARHAT",
+    "routeName": "Route 4 — Return via Bahaddarhat",
+    "routeDirection": "Station → CUET",
+    "departureTime": "02:30 PM",
+    "scheduleDate": "2026-11-09",
+    "scheduleStatus": "Scheduled",
+    "startedAt": null,
+    "completedAt": null,
+    "createdBy": "74dd5928-88a2-4000-a011-2c67025e46ad",
+    "createdAt": "2026-11-07T19:55:58.101Z",
+    "updatedAt": "2026-11-07T19:55:58.101Z"
+  },
+  {
     "id": "SCH-68974222",
     "scheduleId": "SCH-68974222",
     "busId": "BUS-37624300",

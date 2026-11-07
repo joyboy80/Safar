@@ -415,7 +415,7 @@ export default function TodayBusesPage({ role }) {
               <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {buses.map((bus) => (
                   <PortalBusCard
-                    key={bus.id}
+                    key={bus.scheduleId || bus.tripId || bus.id}
                     bus={bus}
                     role={role}
                     date={selectedDate}

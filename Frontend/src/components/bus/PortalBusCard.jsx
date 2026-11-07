@@ -12,8 +12,10 @@ function toneForStatus(status) {
 
 export default function PortalBusCard({ bus, role, date }) {
   const dateParam = date ? `date=${encodeURIComponent(date)}` : "";
-  const detailsTo = `/${role}/buses/${bus.id}${dateParam ? `?${dateParam}` : ""}`;
-  const reserveTo = `/${role}/reservations/new?busId=${encodeURIComponent(bus.id)}${dateParam ? `&${dateParam}` : ""}`;
+  const busIdVal = bus.busId || bus.id;
+  const tripParam = bus.scheduleId || bus.tripId ? `&tripId=${encodeURIComponent(bus.scheduleId || bus.tripId)}` : "";
+  const detailsTo = `/${role}/buses/${encodeURIComponent(busIdVal)}${dateParam ? `?${dateParam}` : ""}`;
+  const reserveTo = `/${role}/reservations/new?busId=${encodeURIComponent(busIdVal)}${dateParam ? `&${dateParam}` : ""}${tripParam}`;
 
   return (
     <article className={`bus-card ${getBusAccent(bus.name)}`}>
@@ -30,19 +32,19 @@ export default function PortalBusCard({ bus, role, date }) {
       <div className="mt-4 grid gap-3 text-sm text-safar-gray sm:grid-cols-2">
         <div className="flex items-center gap-2">
           <MapPin className="bus-color h-4 w-4 shrink-0" />
-          <span className="min-w-0 truncate">{bus.route}</span>
+          <span className="min-w-0 truncate" title={bus.route}>{bus.route}</span>
         </div>
         <div className="flex items-center gap-2">
           <Clock className="bus-color h-4 w-4 shrink-0" />
-          <span>{bus.departureTime} - {bus.arrivalTime}</span>
+          <span>{bus.departureTime}</span>
         </div>
         <div className="flex items-center gap-2">
           <Users className="bus-color h-4 w-4 shrink-0" />
-          <span>{bus.availableSeats} seats available</span>
+          <span>{bus.availableSeats ?? bus.capacity} seats available</span>
         </div>
         <div className="flex items-center gap-2">
           <Navigation className="bus-color h-4 w-4 shrink-0" />
-          <span>Next: {bus.nextStop} / ETA {bus.eta}</span>
+          <span>Driver: {bus.driverName || "Assigned"}</span>
         </div>
       </div>
 
