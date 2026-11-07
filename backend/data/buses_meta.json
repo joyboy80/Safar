@@ -1,1 +1,18 @@
-{}
+{
+  "BUS-F136322F": {
+    "category": "University Shuttle",
+    "description": "Test shuttle for CUET campus",
+    "imageUrl": null,
+    "registrationNumber": "CTG-TEST-5616",
+    "operationalStatus": "Running",
+    "updatedAt": "2026-11-07T18:15:56.258Z"
+  },
+  "BUS-F2EC95DD": {
+    "category": "University Shuttle",
+    "description": "Test shuttle for CUET campus",
+    "imageUrl": null,
+    "registrationNumber": "CTG-TEST-7817",
+    "operationalStatus": "Online",
+    "updatedAt": "2026-11-07T18:17:18.252Z"
+  }
+}

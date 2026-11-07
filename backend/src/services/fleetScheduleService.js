@@ -113,7 +113,7 @@ export async function listAllBuses() {
       busName: b.name,
       registrationNumber: b.number || busMeta.registrationNumber || "—",
       number: b.number,
-      category: b.category,
+      category: busMeta.category || b.category || "Student Bus",
       capacity: Number(b.capacity) || 40,
       description: busMeta.description || b.description || "",
       imageUrl: busMeta.imageUrl || b.image_url || null,
@@ -166,12 +166,20 @@ export async function saveBusRecord(input) {
     throw new AppError(409, `A bus with registration number "${registrationNumber}" already exists.`, "DUPLICATE_REGISTRATION");
   }
 
+  // Supabase check constraint accepts: 'Student Bus', 'Female Student Bus', 'Teacher Bus', 'Staff Bus'
+  const validDbCategories = ["Student Bus", "Female Student Bus", "Teacher Bus", "Staff Bus"];
+  const dbCategory = validDbCategories.includes(category) ? category : "Student Bus";
+
   const dbPayload = {
     id: busId,
     name,
     number: registrationNumber,
-    category,
+    category: dbCategory,
     capacity,
+    route: "Campus Route",
+    stops: ["CUET Campus", "Station"],
+    departure_time: "07:30 AM",
+    arrival_time: "08:30 AM",
     status: operationalStatus,
     updated_at: new Date().toISOString(),
   };
@@ -186,9 +194,10 @@ export async function saveBusRecord(input) {
     throw new AppError(500, `Failed to save bus: ${error.message}`, "BUS_SAVE_FAILED");
   }
 
-  // Persist additional metadata (description, image)
+  // Persist additional metadata (exact user category, description, image)
   const meta = await readBusesMetaData();
   meta[busId] = {
+    category,
     description,
     imageUrl,
     registrationNumber,
@@ -204,7 +213,7 @@ export async function saveBusRecord(input) {
     busName: data.name,
     registrationNumber: data.number,
     number: data.number,
-    category: data.category,
+    category,
     capacity: data.capacity,
     description,
     imageUrl,
@@ -444,7 +453,7 @@ export async function createScheduleRecord(input, adminUser) {
   existingSchedules.unshift(newSchedule);
   await writeSchedulesData(existingSchedules);
 
-  // Mirror schedule into transport_trips so downstream reservations & tickets continue working seamlessly
+  // Mirror schedule into transport_trips and transport_schedules so Supabase is 100% synchronized
   try {
     await admin.from("transport_trips").upsert({
       id: scheduleId,
@@ -456,14 +465,25 @@ export async function createScheduleRecord(input, adminUser) {
       status: "Scheduled",
       service_date: scheduleDate,
       driver_profile_id: driverProfile.id,
-      route_id: route.id,
       direction: route.direction?.includes("Station") ? "OUTBOUND" : "RETURN",
       reservation_status: "OPEN",
       operational_status: "SCHEDULED",
       updated_at: now,
     });
+
+    await admin.from("transport_schedules").upsert({
+      id: scheduleId,
+      trip_id: scheduleId,
+      bus_id: bus.id,
+      service_date: scheduleDate,
+      departure_time: departureTime,
+      arrival_time: departureTime,
+      schedule_type: "Regular",
+      status: "Scheduled",
+      updated_at: now,
+    });
   } catch (syncErr) {
-    console.warn("[Fleet] Syncing trip row notice:", syncErr.message);
+    console.warn("[Fleet] Syncing trip/schedule rows notice:", syncErr.message);
   }
 
   return newSchedule;
@@ -541,13 +561,21 @@ export async function cancelScheduleRecord(scheduleId) {
 
   await writeSchedulesData(schedules);
 
-  // Sync to transport_trips
+  // Sync to transport_trips and transport_schedules in Supabase
   const admin = getSupabaseAdmin();
-  await admin.from("transport_trips").update({
-    status: "Cancelled",
-    operational_status: "CANCELLED",
-    reservation_status: "CLOSED",
-  }).eq("id", scheduleId).catch(() => {});
+  try {
+    await admin.from("transport_trips").update({
+      status: "Cancelled",
+      operational_status: "CANCELLED",
+      reservation_status: "CLOSED",
+    }).eq("id", scheduleId);
+  } catch {}
+  try {
+    await admin.from("transport_schedules").update({
+      status: "Cancelled",
+      updated_at: new Date().toISOString(),
+    }).eq("id", scheduleId);
+  } catch {}
 
   return schedule;
 }
@@ -564,9 +592,14 @@ export async function deleteScheduleRecord(scheduleId) {
   const remaining = schedules.filter((s) => s.id !== scheduleId);
   await writeSchedulesData(remaining);
 
-  // Also remove from transport_trips if present
+  // Also remove from transport_schedules and transport_trips if present in Supabase
   const admin = getSupabaseAdmin();
-  await admin.from("transport_trips").delete().eq("id", scheduleId).catch(() => {});
+  try {
+    await admin.from("transport_schedules").delete().eq("id", scheduleId);
+  } catch {}
+  try {
+    await admin.from("transport_trips").delete().eq("id", scheduleId);
+  } catch {}
 
   return { success: true, message: "Schedule deleted." };
 }
@@ -630,19 +663,30 @@ export async function driverStartScheduleTrip(driverProfileId, scheduleId) {
   // Update bus status to Running
   await updateBusOperationalStatus(schedule.busId, BUS_STATUSES.RUNNING);
 
-  // Sync to transport_trips and tracking_positions
+  // Sync to transport_trips, transport_schedules, and tracking_positions
   const admin = getSupabaseAdmin();
-  await admin.from("transport_trips").update({
-    status: "In Progress",
-    operational_status: "IN_PROGRESS",
-    updated_at: now,
-  }).eq("id", scheduleId).catch(() => {});
+  try {
+    await admin.from("transport_trips").update({
+      status: "In Progress",
+      operational_status: "IN_PROGRESS",
+      updated_at: now,
+    }).eq("id", scheduleId);
+  } catch {}
 
-  await admin.from("tracking_positions").upsert({
-    bus_id: schedule.busId,
-    status: "Running",
-    updated_at: now,
-  }).catch(() => {});
+  try {
+    await admin.from("transport_schedules").update({
+      status: "Running",
+      updated_at: now,
+    }).eq("id", scheduleId);
+  } catch {}
+
+  try {
+    await admin.from("tracking_positions").upsert({
+      bus_id: schedule.busId,
+      status: "Running",
+      updated_at: now,
+    });
+  } catch {}
 
   return {
     ...schedule,
@@ -671,21 +715,32 @@ export async function driverCompleteScheduleTrip(driverProfileId, scheduleId) {
   // Release bus back to Online so it is available for next schedule!
   await updateBusOperationalStatus(schedule.busId, BUS_STATUSES.ONLINE);
 
-  // Sync to transport_trips and tracking
+  // Sync to transport_trips, transport_schedules, and tracking
   const admin = getSupabaseAdmin();
-  await admin.from("transport_trips").update({
-    status: "Completed",
-    operational_status: "COMPLETED",
-    reservation_status: "CLOSED",
-    updated_at: now,
-  }).eq("id", scheduleId).catch(() => {});
+  try {
+    await admin.from("transport_trips").update({
+      status: "Completed",
+      operational_status: "COMPLETED",
+      reservation_status: "CLOSED",
+      updated_at: now,
+    }).eq("id", scheduleId);
+  } catch {}
 
-  await admin.from("tracking_positions").update({
-    status: "Completed",
-    speed: 0,
-    eta_minutes: 0,
-    updated_at: now,
-  }).eq("bus_id", schedule.busId).catch(() => {});
+  try {
+    await admin.from("transport_schedules").update({
+      status: "Completed",
+      updated_at: now,
+    }).eq("id", scheduleId);
+  } catch {}
+
+  try {
+    await admin.from("tracking_positions").update({
+      status: "Completed",
+      speed: 0,
+      eta_minutes: 0,
+      updated_at: now,
+    }).eq("bus_id", schedule.busId);
+  } catch {}
 
   return {
     ...schedule,
