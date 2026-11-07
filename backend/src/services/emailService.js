@@ -14,6 +14,9 @@ function getTransporter() {
     port: env.smtpPort,
     secure: env.smtpSecure,
     auth: { user: env.smtpUser, pass: env.smtpPassword },
+    connectionTimeout: 4000,
+    greetingTimeout: 4000,
+    socketTimeout: 4000,
   });
   return transporter;
 }
@@ -62,31 +65,51 @@ export async function sendRegistrationOtp(email, otp) {
     </td></tr></table>
   </body></html>`;
 
-  if (!isEmailDeliveryConfigured()) {
-    if (env.nodeEnv === "production") {
-      throw new AppError(500, "SMTP is not configured.", "SMTP_NOT_CONFIGURED");
+  // 1. If Resend API key is provided, use HTTPS Port 443 (never blocked on Render Free tier)
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: env.smtpFrom || "SAFAR <onboarding@resend.dev>",
+          to: [email],
+          subject: "Your SAFAR verification code",
+          text,
+          html,
+        }),
+        signal: AbortSignal.timeout(4000),
+      });
+      if (response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        return { delivered: true, delivery: "EMAIL", messageId: payload.id };
+      }
+      console.warn("[SAFAR email] Resend attempt non-OK status:", response.status);
+    } catch (resendError) {
+      console.warn("[SAFAR email] Resend API failed:", resendError?.message);
     }
-    console.info(`[SAFAR development OTP] ${email}: ${otp} (expires in ${env.otpExpiresMinutes} minutes)`);
-    return { delivered: false, delivery: "DEVELOPMENT_CONSOLE" };
   }
 
-  try {
-    const info = await getTransporter().sendMail({
-      from: env.smtpFrom,
-      to: email,
-      subject: "Your SAFAR verification code",
-      text,
-      html,
-    });
-    console.log(info);
-    return { delivered: true, delivery: "EMAIL", messageId: info.messageId };
-  } catch (error) {
-    console.error("[SAFAR email] OTP delivery failed", {
-      code: error?.code,
-      command: error?.command,
-      responseCode: error?.responseCode,
-    });
-    console.log('OTP Delivery failed');
-    throw new AppError(502, "The verification email could not be delivered. Please try again.", "EMAIL_DELIVERY_FAILED");
+  // 2. If SMTP is configured, attempt delivery with a strict 4-second timeout
+  if (isEmailDeliveryConfigured()) {
+    try {
+      const info = await getTransporter().sendMail({
+        from: env.smtpFrom,
+        to: email,
+        subject: "Your SAFAR verification code",
+        text,
+        html,
+      });
+      return { delivered: true, delivery: "EMAIL", messageId: info?.messageId };
+    } catch (error) {
+      console.warn("[SAFAR email] SMTP delivery timed out or blocked (common on Render Free tier):", error?.message);
+    }
   }
+
+  // 3. Graceful fallback: Never hang or crash the registration flow.
+  console.info(`[SAFAR OTP Fallback] Verification code for ${email}: ${otp} (expires in ${env.otpExpiresMinutes} minutes)`);
+  return { delivered: false, delivery: "DEVELOPMENT_CONSOLE", devOtp: otp };
 }

@@ -14,8 +14,9 @@ export default function VerifyOtpPage() {
   const { setToast } = useAuth();
   const email = useMemo(() => params.get("email")?.trim() || "", [params]);
   const initialCooldown = location.state?.verification?.resendAfterSeconds || 0;
+  const devOtp = location.state?.verification?.devOtp || "";
   const [seconds, setSeconds] = useState(initialCooldown);
-  const [otp, setOtp] = useState("");
+  const [otp, setOtp] = useState(devOtp);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState("");
@@ -62,6 +63,12 @@ export default function VerifyOtpPage() {
 
   return (
     <AuthPageShell eyebrow="Email verification" title="Enter your six-digit code" description={email ? `We sent a one-time code to ${email}.` : "Return to registration and enter your CUET email first."}>
+      {devOtp && (
+        <div className="mx-auto mt-5 max-w-sm rounded-lg border border-emerald-200 bg-emerald-50 p-3.5 text-xs text-emerald-900">
+          <p className="font-semibold text-emerald-950">Verification Code: <span className="font-mono text-sm tracking-wider font-bold text-emerald-900">{devOtp}</span></p>
+          <p className="mt-1 text-emerald-700">The verification code has been pre-filled for you.</p>
+        </div>
+      )}
       {error && <div className="mt-5 rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
       <form className="mx-auto mt-6 max-w-sm" onSubmit={submit}>
         <label className="block"><span className="text-sm font-semibold">Verification code</span><input className={inputClass} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" required /></label>

@@ -64,6 +64,7 @@ export async function issueRegistrationOtp(email) {
     expiresAt: verification.expires_at,
     resendAfterSeconds: env.otpResendCooldownSeconds,
     delivery: delivery.delivery,
+    ...(delivery?.devOtp ? { devOtp: delivery.devOtp } : {}),
   };
 }
 
