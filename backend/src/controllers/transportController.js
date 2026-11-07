@@ -41,6 +41,21 @@ import {
   updateMaintenance,
   verifyDriverTicket,
 } from "../services/transportService.js";
+import {
+  listAllBuses,
+  saveBusRecord,
+  updateBusOperationalStatus,
+  removeBusRecord,
+  listAllSchedules,
+  createScheduleRecord,
+  updateScheduleRecord,
+  cancelScheduleRecord,
+  deleteScheduleRecord,
+  getDriverSchedules,
+  driverStartScheduleTrip,
+  driverCompleteScheduleTrip,
+  getUserDashboardSchedules,
+} from "../services/fleetScheduleService.js";
 import { getOccupancyPredictions, getSmartTransportationInsights } from "../services/predictionService.js";
 import { getBusAllocationRecommendations } from "../services/recommendationService.js";
 import AppError from "../utils/AppError.js";
@@ -62,7 +77,17 @@ function reservationInput(body = {}) {
   return { tripId, date, seatNumber };
 }
 
-export const buses = asyncHandler(async (req, res) => sendSuccess(res, { data: { buses: await listBuses(req.user, undefined, req.query.date) } }));
+export const buses = asyncHandler(async (req, res) => {
+  const [scheduledBuses, baseBuses] = await Promise.all([
+    getUserDashboardSchedules(req.user, req.query.date).catch(() => []),
+    listBuses(req.user, undefined, req.query.date).catch(() => []),
+  ]);
+  const combined = [
+    ...scheduledBuses,
+    ...baseBuses.filter((b) => !scheduledBuses.some((sb) => sb.busId === b.id || sb.id === b.id)),
+  ];
+  return sendSuccess(res, { data: { buses: combined } });
+});
 export const bus = asyncHandler(async (req, res) => {
   const result = await listBuses(req.user, req.params.id, req.query.date);
   if (!result) throw new AppError(404, "Bus not found or unavailable for this role.", "BUS_NOT_FOUND");
@@ -228,13 +253,68 @@ export const readNotification = asyncHandler(async (req, res) => sendSuccess(res
 export const readAllNotifications = asyncHandler(async (req, res) => sendSuccess(res, { data: { notifications: await markNotification(req.user) } }));
 export const removeNotifications = asyncHandler(async (req, res) => sendSuccess(res, { data: { notifications: await clearNotifications(req.user) } }));
 
-export const assignedTrips = asyncHandler(async (req, res) => sendSuccess(res, { data: { trips: await driverTrips(req.user) } }));
+export const assignedTrips = asyncHandler(async (req, res) => {
+  const driverId = req.user.authUserId || req.user.id || req.user.profileId;
+  const [schedules, legacy] = await Promise.all([
+    getDriverSchedules(driverId).catch(() => []),
+    driverTrips(req.user).catch(() => []),
+  ]);
+  const formattedSchedules = schedules.map((s) => ({
+    id: s.id,
+    tripId: s.id,
+    scheduleId: s.id,
+    busId: s.busId,
+    busName: s.busName,
+    busNumber: s.registrationNumber,
+    registrationNumber: s.registrationNumber,
+    busCategory: s.busCategory,
+    route: s.routeName,
+    routeName: s.routeName,
+    routeDirection: s.routeDirection,
+    departureTime: s.departureTime,
+    scheduleDate: s.scheduleDate,
+    status: s.scheduleStatus === "Running" ? "In Progress"
+      : s.scheduleStatus === "Completed" ? "Completed"
+      : s.scheduleStatus === "Cancelled" ? "Cancelled"
+      : "Upcoming",
+    scheduleStatus: s.scheduleStatus,
+    capacity: s.capacity,
+    stops: s.stops || [],
+  }));
+  const combined = [...formattedSchedules, ...legacy.filter((l) => !formattedSchedules.some((f) => f.id === l.id))];
+  return sendSuccess(res, { data: { trips: combined } });
+});
 export const manifest = asyncHandler(async (req, res) => sendSuccess(res, { data: { passengers: await passengerManifest(req.user, req.params.id) } }));
 export const summary = asyncHandler(async (req, res) => sendSuccess(res, { data: { summary: await tripSummary(req.user, req.params.id) } }));
 export const changeTripStatus = asyncHandler(async (req, res) => {
   const status = text(req.body.status, "Trip status");
-  if (!["Upcoming", "Boarding", "In Progress", "Completed", "Cancelled"].includes(status)) throw new AppError(400, "Unsupported trip status.", "INVALID_TRIP_STATUS");
-  return sendSuccess(res, { data: { trip: await updateDriverTrip(req.user, req.params.id, status) } });
+  const normalized = status === "Running" ? "In Progress" : status;
+  if (!["Upcoming", "Boarding", "In Progress", "Completed", "Cancelled"].includes(normalized)) {
+    throw new AppError(400, "Unsupported trip status.", "INVALID_TRIP_STATUS");
+  }
+
+  const driverId = req.user.authUserId || req.user.id || req.user.profileId;
+  let scheduleTrip = null;
+
+  if (normalized === "In Progress") {
+    try {
+      scheduleTrip = await driverStartScheduleTrip(driverId, req.params.id);
+    } catch {
+      // not a fleet schedule or fallback
+    }
+  } else if (normalized === "Completed") {
+    try {
+      scheduleTrip = await driverCompleteScheduleTrip(driverId, req.params.id);
+    } catch {
+      // not a fleet schedule or fallback
+    }
+  }
+
+  if (scheduleTrip) {
+    return sendSuccess(res, { data: { trip: scheduleTrip } });
+  }
+
+  return sendSuccess(res, { data: { trip: await updateDriverTrip(req.user, req.params.id, normalized) } });
 });
 export const publishLocation = asyncHandler(async (req, res) => {
   const latitude = Number(req.body.latitude);
@@ -250,15 +330,53 @@ export const conditionReport = asyncHandler(async (req, res) => sendSuccess(res,
 export const delayReport = asyncHandler(async (req, res) => sendSuccess(res, { status: 201, data: { report: await createDriverReport(req.user, "DELAY", req.body) } }));
 export const emergencyReport = asyncHandler(async (req, res) => sendSuccess(res, { status: 201, data: { report: await createDriverReport(req.user, "EMERGENCY", req.body) } }));
 
-export const getAdminBuses = asyncHandler(async (_req, res) => sendSuccess(res, { data: { buses: await adminBuses() } }));
-export const putAdminBus = asyncHandler(async (req, res) => sendSuccess(res, { data: { bus: await saveAdminBus(req.body) } }));
-export const removeAdminBus = asyncHandler(async (req, res) => { await deleteAdminBus(req.params.id); return sendSuccess(res, { message: "Bus deleted." }); });
+export const getAdminBuses = asyncHandler(async (_req, res) => {
+  const fleet = await listAllBuses();
+  return sendSuccess(res, { data: { buses: fleet } });
+});
+export const putAdminBus = asyncHandler(async (req, res) => {
+  const bus = await saveBusRecord(req.body);
+  return sendSuccess(res, { data: { bus }, message: "Bus saved successfully." });
+});
+export const patchAdminBusStatus = asyncHandler(async (req, res) => {
+  const status = text(req.body.status, "Operational status");
+  const bus = await updateBusOperationalStatus(req.params.id, status);
+  return sendSuccess(res, { data: { bus }, message: "Bus status updated." });
+});
+export const removeAdminBus = asyncHandler(async (req, res) => {
+  await removeBusRecord(req.params.id);
+  return sendSuccess(res, { message: "Bus deleted." });
+});
 export const getAdminRoutes = asyncHandler(async (_req, res) => sendSuccess(res, { data: { routes: await listRoutes() } }));
 export const putAdminRoute = asyncHandler(async (req, res) => sendSuccess(res, { data: { route: await saveAdminRoute(req.body) } }));
 export const removeAdminRoute = asyncHandler(async (req, res) => { await deleteAdminRoute(req.params.id); return sendSuccess(res, { message: "Route deleted." }); });
-export const getAdminSchedules = asyncHandler(async (_req, res) => sendSuccess(res, { data: { schedules: await adminSchedules() } }));
-export const putAdminSchedule = asyncHandler(async (req, res) => sendSuccess(res, { data: { schedule: await saveAdminSchedule(req.body) } }));
-export const removeAdminSchedule = asyncHandler(async (req, res) => { await deleteAdminSchedule(req.params.id); return sendSuccess(res, { message: "Schedule deleted." }); });
+export const getAdminSchedules = asyncHandler(async (req, res) => {
+  const { date, status } = req.query;
+  const schedules = await listAllSchedules({ date, status });
+  return sendSuccess(res, { data: { schedules } });
+});
+export const postAdminSchedule = asyncHandler(async (req, res) => {
+  const schedule = await createScheduleRecord(req.body, req.user);
+  return sendSuccess(res, { status: 201, data: { schedule }, message: "Bus schedule created successfully." });
+});
+export const putAdminSchedule = asyncHandler(async (req, res) => {
+  const scheduleId = req.params.id || req.body.id || req.body.scheduleId;
+  let schedule;
+  if (scheduleId) {
+    schedule = await updateScheduleRecord(scheduleId, req.body, req.user);
+  } else {
+    schedule = await createScheduleRecord(req.body, req.user);
+  }
+  return sendSuccess(res, { data: { schedule }, message: "Bus schedule saved successfully." });
+});
+export const patchAdminScheduleCancel = asyncHandler(async (req, res) => {
+  const schedule = await cancelScheduleRecord(req.params.id, req.user);
+  return sendSuccess(res, { data: { schedule }, message: "Schedule cancelled." });
+});
+export const removeAdminSchedule = asyncHandler(async (req, res) => {
+  await deleteScheduleRecord(req.params.id);
+  return sendSuccess(res, { message: "Schedule deleted." });
+});
 export const getAdminAssignments = asyncHandler(async (_req, res) => sendSuccess(res, { data: { assignments: await adminAssignments() } }));
 export const putAdminAssignment = asyncHandler(async (req, res) => sendSuccess(res, { status: 201, data: { assignment: await saveAdminAssignment(req.body) } }));
 export const removeAdminAssignment = asyncHandler(async (req, res) => { await cancelAdminAssignment(req.params.id); return sendSuccess(res, { message: "Assignment cancelled." }); });

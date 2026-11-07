@@ -10,6 +10,13 @@ export async function saveBus(input) {
   return (await apiRequest("/admin/transport/buses", { method: "PUT", body: input })).bus;
 }
 
+export async function updateBusStatus(id, status) {
+  return (await apiRequest(`/admin/transport/buses/${encodeURIComponent(id)}/status`, {
+    method: "PATCH",
+    body: { status },
+  })).bus;
+}
+
 export async function deleteBus(id) {
   return apiRequest(`/admin/transport/buses/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
@@ -18,12 +25,32 @@ export async function getAdminRoutes() {
   return (await apiRequest("/admin/transport/routes")).routes;
 }
 
-export async function getAdminSchedules() {
-  return (await apiRequest("/admin/transport/schedules")).schedules;
+export async function getAdminSchedules(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.date) params.append("date", filters.date);
+  if (filters.status && filters.status !== "All") params.append("status", filters.status);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return (await apiRequest(`/admin/transport/schedules${query}`)).schedules;
+}
+
+export async function createSchedule(input) {
+  return (await apiRequest("/admin/transport/schedules", { method: "POST", body: input })).schedule;
+}
+
+export async function updateSchedule(id, input) {
+  return (await apiRequest(`/admin/transport/schedules/${encodeURIComponent(id)}`, { method: "PUT", body: input })).schedule;
 }
 
 export async function saveSchedule(input) {
-  return (await apiRequest("/admin/transport/schedules", { method: "PUT", body: input })).schedule;
+  const id = input.id || input.scheduleId;
+  if (id) {
+    return updateSchedule(id, input);
+  }
+  return createSchedule(input);
+}
+
+export async function cancelSchedule(id) {
+  return (await apiRequest(`/admin/transport/schedules/${encodeURIComponent(id)}/cancel`, { method: "PATCH" })).schedule;
 }
 
 export async function deleteSchedule(id) {

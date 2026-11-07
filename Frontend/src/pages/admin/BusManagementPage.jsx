@@ -1,9 +1,21 @@
-import { Eye, MapPin, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  AlertCircle,
+  Bus as BusIcon,
+  CheckCircle2,
+  Clock,
+  Edit2,
+  Image as ImageIcon,
+  MoreVertical,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+  Wrench,
+  XCircle,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import AdminFormModal from "../../components/admin/AdminFormModal";
-import AdminStatusBadge from "../../components/admin/AdminStatusBadge";
 import FeaturedBusPhotosManager from "../../components/admin/FeaturedBusPhotosManager";
-import ResponsiveDataList from "../../components/admin/ResponsiveDataList";
 import Button from "../../components/common/Button";
 import EmptyState from "../../components/common/EmptyState";
 import ErrorState from "../../components/common/ErrorState";
@@ -13,445 +25,565 @@ import Select from "../../components/common/Select";
 import PageHeader from "../../components/layout/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import DashboardLayout from "../../layouts/DashboardLayout";
-import { deleteBus, getAdminBuses, getAdminRoutes, saveBus } from "../../services/adminService";
+import {
+  deleteBus,
+  getAdminBuses,
+  saveBus,
+  updateBusStatus,
+} from "../../services/adminService";
 
-const blankBusForm = {
-  busId: "",
-  id: "",
-  routeId: "",
-  type: "Student Bus",
-  capacity: 44,
-  status: "On Time",
+const OPERATIONAL_STATUSES = ["Online", "Running", "Stopped", "Maintenance"];
+
+const BUS_CATEGORIES = [
+  "AC",
+  "Non-AC",
+  "University Shuttle",
+  "Student Bus",
+  "Female Student Bus",
+  "Teacher Bus",
+  "Staff Bus",
+];
+
+const statusStyles = {
+  Online: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
+  Running: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
+  Stopped: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
+  Maintenance: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
 };
+
+const blankBus = () => ({
+  id: "",
+  busName: "",
+  registrationNumber: "",
+  category: "University Shuttle",
+  capacity: 40,
+  description: "",
+  imageUrl: "",
+  operationalStatus: "Online",
+});
 
 export default function BusManagementPage() {
   const { setToast } = useAuth();
   const [buses, setBuses] = useState([]);
-  const [routes, setRoutes] = useState([]);
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [form, setForm] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  async function load() {
+  async function loadFleet() {
     setLoading(true);
     try {
-      const [busData, routeData] = await Promise.all([getAdminBuses(), getAdminRoutes()]);
-      setBuses(busData);
-      setRoutes(routeData);
+      const data = await getAdminBuses();
+      setBuses(data || []);
       setError("");
-    } catch (requestError) {
-      setError(requestError.message);
+    } catch (err) {
+      setError(err.message || "Failed to load bus fleet.");
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
+    loadFleet();
   }, []);
 
+  const stats = useMemo(() => {
+    const total = buses.length;
+    const online = buses.filter((b) => (b.operationalStatus || b.status) === "Online").length;
+    const running = buses.filter((b) => (b.operationalStatus || b.status) === "Running").length;
+    const stopped = buses.filter((b) => (b.operationalStatus || b.status) === "Stopped").length;
+    const maintenance = buses.filter((b) => (b.operationalStatus || b.status) === "Maintenance").length;
+    return { total, online, running, stopped, maintenance };
+  }, [buses]);
+
   const visible = useMemo(() => {
-    const needle = query.toLowerCase();
-    return buses.filter((bus) =>
-      [bus.name, bus.number, bus.type, bus.route, bus.assignedDriver].some((value) =>
-        value?.toLowerCase().includes(needle)
-      )
-    );
-  }, [buses, query]);
-
-  function handleOpenModal(bus = null) {
-    if (bus) {
-      const matchedRoute = routes.find(
-        (r) =>
-          r.id === bus.routeId ||
-          r.name === bus.route ||
-          `${r.start} - ${r.destination}` === bus.route ||
-          `${r.start} to ${r.destination}` === bus.route
+    const q = query.trim().toLowerCase();
+    return buses.filter((b) => {
+      const currentStatus = b.operationalStatus || b.status || "Online";
+      if (statusFilter !== "All" && currentStatus !== statusFilter) return false;
+      if (!q) return true;
+      return (
+        (b.name || b.busName || "").toLowerCase().includes(q) ||
+        (b.number || b.registrationNumber || "").toLowerCase().includes(q) ||
+        (b.category || "").toLowerCase().includes(q) ||
+        (b.id || "").toLowerCase().includes(q)
       );
-      setForm({
-        busId: bus.id,
-        id: bus.id,
-        routeId: bus.routeId || matchedRoute?.id || "",
-        type: bus.type || "Student Bus",
-        capacity: bus.capacity || 44,
-        status: bus.status || "On Time",
-      });
-    } else {
-      setForm({ ...blankBusForm });
+    });
+  }, [buses, query, statusFilter]);
+
+  function handleOpenCreate() {
+    setForm(blankBus());
+  }
+
+  function handleOpenEdit(bus) {
+    setForm({
+      id: bus.id,
+      busName: bus.name || bus.busName || "",
+      registrationNumber: bus.number || bus.registrationNumber || "",
+      category: bus.category || "University Shuttle",
+      capacity: bus.capacity || 40,
+      description: bus.description || "",
+      imageUrl: bus.imageUrl || "",
+      operationalStatus: bus.operationalStatus || bus.status || "Online",
+    });
+  }
+
+  async function handleQuickStatusChange(busId, newStatus) {
+    try {
+      await updateBusStatus(busId, newStatus);
+      setToast({ type: "success", message: `Bus status updated to ${newStatus}.` });
+      setBuses((prev) =>
+        prev.map((b) => (b.id === busId ? { ...b, operationalStatus: newStatus, status: newStatus } : b))
+      );
+    } catch (err) {
+      setToast({ type: "error", message: err.message || "Could not update status." });
     }
   }
 
-  function handleBusSelect(busId) {
-    const selected = buses.find((b) => b.id === busId);
-    if (!selected) {
-      setForm((prev) => ({ ...prev, busId }));
+  async function handleSaveBus(e) {
+    e.preventDefault();
+    if (!form.busName.trim()) {
+      setToast({ type: "error", message: "Bus Name is required." });
       return;
     }
-    const matchedRoute = routes.find(
-      (r) =>
-        r.id === selected.routeId ||
-        r.name === selected.route ||
-        `${r.start} - ${r.destination}` === selected.route ||
-        `${r.start} to ${r.destination}` === selected.route
-    );
-    setForm((prev) => ({
-      ...prev,
-      busId: selected.id,
-      id: selected.id,
-      type: selected.type || prev.type,
-      capacity: selected.capacity || prev.capacity,
-      status: selected.status || prev.status,
-      routeId: selected.routeId || matchedRoute?.id || prev.routeId || "",
-    }));
-  }
-
-  async function submit(event) {
-    event.preventDefault();
-    if (!form.busId) {
-      setToast({ type: "error", message: "Please select a bus from the database." });
+    if (!form.registrationNumber.trim()) {
+      setToast({ type: "error", message: "Registration Number is required." });
       return;
     }
-    if (!form.routeId) {
-      setToast({ type: "error", message: "Please select a route from the database." });
+    if (!form.capacity || Number(form.capacity) < 1 || Number(form.capacity) > 120) {
+      setToast({ type: "error", message: "Capacity must be between 1 and 120." });
       return;
     }
 
     setSaving(true);
     try {
       await saveBus({
-        busId: form.busId,
-        id: form.busId,
-        routeId: form.routeId,
-        type: form.type,
+        id: form.id || undefined,
+        name: form.busName.trim(),
+        registrationNumber: form.registrationNumber.trim(),
+        category: form.category,
         capacity: Number(form.capacity),
-        status: form.status,
+        description: form.description.trim(),
+        imageUrl: form.imageUrl.trim(),
+        operationalStatus: form.operationalStatus,
       });
+
       setToast({
         type: "success",
-        message: "Bus and route configuration updated successfully.",
+        message: form.id ? "Bus details updated successfully." : "New bus registered successfully.",
       });
       setForm(null);
-      await load();
-    } catch (requestError) {
-      setError(requestError.message);
-      setToast({ type: "error", message: requestError.message });
+      await loadFleet();
+    } catch (err) {
+      setToast({ type: "error", message: err.message || "Failed to save bus record." });
     } finally {
       setSaving(false);
     }
   }
 
-  async function confirmDelete() {
+  async function handleDeleteConfirm() {
+    if (!deleteTarget) return;
     try {
       await deleteBus(deleteTarget.id);
+      setToast({ type: "success", message: `Bus ${deleteTarget.name || deleteTarget.busName} deleted.` });
       setDeleteTarget(null);
-      setToast({ type: "info", message: "Bus removed from the admin fleet list." });
-      await load();
-    } catch (requestError) {
-      setError(requestError.message);
-      setToast({ type: "error", message: requestError.message });
-      setDeleteTarget(null);
+      await loadFleet();
+    } catch (err) {
+      setToast({ type: "error", message: err.message || "Could not delete bus." });
     }
   }
-
-  const selectedBus = useMemo(
-    () => buses.find((b) => b.id === form?.busId),
-    [buses, form?.busId]
-  );
-
-  const selectedRoute = useMemo(
-    () => routes.find((r) => r.id === form?.routeId),
-    [routes, form?.routeId]
-  );
-
-  const actions = (bus) => (
-    <div className="flex flex-wrap gap-2">
-      <button
-        className="focus-ring rounded-lg p-2 text-safar-teal hover:bg-safar-mint hover:text-safar-navy"
-        aria-label={`Edit ${bus.name}`}
-        onClick={() => handleOpenModal(bus)}
-      >
-        <Pencil className="h-4 w-4" />
-      </button>
-      <button
-        className="focus-ring rounded-lg p-2 text-safar-gray hover:bg-slate-100 hover:text-safar-ink"
-        aria-label={`View condition for ${bus.name}`}
-        onClick={() =>
-          setToast({
-            type: "info",
-            message: `${bus.name}: ${bus.status}, ${bus.availableSeats ?? bus.capacity} seats available.`,
-          })
-        }
-      >
-        <Eye className="h-4 w-4" />
-      </button>
-      <button
-        className="focus-ring rounded-lg p-2 text-safar-gray hover:bg-slate-100 hover:text-safar-ink"
-        aria-label={`View location for ${bus.name}`}
-        onClick={() =>
-          setToast({
-            type: "info",
-            message: bus.currentLocation?.label
-              ? `${bus.name} is at ${bus.currentLocation.label}.`
-              : "No backend-reported location is available.",
-          })
-        }
-      >
-        <MapPin className="h-4 w-4" />
-      </button>
-      <button
-        className="focus-ring rounded-lg p-2 text-red-600 hover:bg-red-50 hover:text-red-700"
-        aria-label={`Delete ${bus.name}`}
-        onClick={() => setDeleteTarget(bus)}
-      >
-        <Trash2 className="h-4 w-4" />
-      </button>
-    </div>
-  );
-
-  const columns = [
-    {
-      label: "Bus",
-      render: (bus) => (
-        <div>
-          <p className="font-bold text-safar-ink">{bus.name}</p>
-          <p className="text-xs text-safar-gray">
-            {bus.id} | {bus.number}
-          </p>
-        </div>
-      ),
-    },
-    {
-      label: "Category",
-      render: (bus) => <span className="font-medium text-safar-gray">{bus.type}</span>,
-    },
-    {
-      label: "Capacity",
-      render: (bus) => <span className="font-bold text-safar-ink">{bus.capacity}</span>,
-    },
-    {
-      label: "Route",
-      render: (bus) => <span className="text-safar-gray">{bus.route}</span>,
-    },
-    {
-      label: "Driver",
-      render: (bus) => <span className="text-safar-gray">{bus.assignedDriver || "Unassigned"}</span>,
-    },
-    {
-      label: "Status",
-      render: (bus) => <AdminStatusBadge status={bus.status} />,
-    },
-    { label: "Actions", render: actions },
-  ];
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <PageHeader
-          eyebrow="Fleet Management"
-          title="Buses"
-          description="Manage fleet records, route assignments, categories, capacity, condition, and current status."
+          eyebrow="Transport Admin"
+          title="Bus Fleet Management"
+          description="Register, monitor, and configure all university buses and their operational statuses."
           actions={
-            <Button icon={Plus} onClick={() => handleOpenModal(null)}>
-              Assign Bus
+            <Button onClick={handleOpenCreate} icon={Plus}>
+              Add Bus
             </Button>
           }
         />
-        {error && <ErrorState title="Fleet unavailable" message={error} />}
-        <label className="relative block max-w-xl">
-          <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-safar-gray" />
-          <input
-            className="focus-ring h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm"
-            placeholder="Search bus, route, driver, or category"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </label>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Fleet</p>
+            <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{stats.total}</p>
+          </div>
+          <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-4 shadow-sm dark:border-emerald-900/50 dark:bg-emerald-950/20">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Online</p>
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            </div>
+            <p className="mt-1 text-2xl font-black text-emerald-800 dark:text-emerald-200">{stats.online}</p>
+          </div>
+          <div className="rounded-2xl border border-blue-200/80 bg-blue-50/50 p-4 shadow-sm dark:border-blue-900/50 dark:bg-blue-950/20">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 uppercase tracking-wider">Running</p>
+              <span className="h-2 w-2 rounded-full bg-blue-500" />
+            </div>
+            <p className="mt-1 text-2xl font-black text-blue-800 dark:text-blue-200">{stats.running}</p>
+          </div>
+          <div className="rounded-2xl border border-amber-200/80 bg-amber-50/50 p-4 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/20">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Stopped</p>
+              <span className="h-2 w-2 rounded-full bg-amber-500" />
+            </div>
+            <p className="mt-1 text-2xl font-black text-amber-800 dark:text-amber-200">{stats.stopped}</p>
+          </div>
+          <div className="rounded-2xl border border-rose-200/80 bg-rose-50/50 p-4 shadow-sm dark:border-rose-900/50 dark:bg-rose-950/20">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-rose-700 dark:text-rose-400 uppercase tracking-wider">Maintenance</p>
+              <Wrench className="h-3.5 w-3.5 text-rose-500" />
+            </div>
+            <p className="mt-1 text-2xl font-black text-rose-800 dark:text-rose-200">{stats.maintenance}</p>
+          </div>
+        </div>
+
+        {/* Filter and Search Bar */}
+        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by bus name, reg number, or ID..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm text-slate-900 transition-all focus:border-teal-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-slate-500 whitespace-nowrap">Status:</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition-all focus:border-teal-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            >
+              <option value="All">All Statuses ({stats.total})</option>
+              <option value="Online">Online ({stats.online})</option>
+              <option value="Running">Running ({stats.running})</option>
+              <option value="Stopped">Stopped ({stats.stopped})</option>
+              <option value="Maintenance">Maintenance ({stats.maintenance})</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Fleet List / Cards */}
         {loading ? (
-          <Loading label="Loading fleet buses" />
-        ) : visible.length ? (
-          <ResponsiveDataList
-            columns={columns}
-            rows={visible}
-            renderMobile={(bus) => (
-              <article className="rounded-2xl bg-white p-4 text-safar-ink shadow-sm ring-1 ring-slate-200 transition hover:bg-safar-mint/70 hover:text-safar-ink">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="font-bold text-safar-ink">
-                      {bus.name}{" "}
-                      <span className="text-sm font-medium text-safar-gray">{bus.number}</span>
-                    </h2>
-                    <p className="mt-1 text-sm text-safar-gray">
-                      {bus.type} | {bus.capacity} seats
-                    </p>
-                  </div>
-                  <AdminStatusBadge status={bus.status} />
-                </div>
-                <p className="mt-3 text-sm font-medium text-safar-ink">{bus.route}</p>
-                <p className="mt-1 text-xs text-safar-gray">
-                  Driver: {bus.assignedDriver || "Unassigned"}
-                </p>
-                <div className="mt-4">{actions(bus)}</div>
-              </article>
-            )}
-          />
-        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center dark:border-slate-800 dark:bg-slate-900">
+            <Loading label="Loading bus fleet..." />
+          </div>
+        ) : error ? (
+          <ErrorState message={error} onRetry={loadFleet} />
+        ) : visible.length === 0 ? (
           <EmptyState
-            title={buses.length ? "No buses match your search" : "No buses in the fleet"}
-            message={
-              buses.length
-                ? "Try another bus name, number, route, driver, or category."
-                : "Add a bus to make it available for daily assignments."
+            icon={BusIcon}
+            title="No buses found"
+            description={
+              query || statusFilter !== "All"
+                ? "No buses match your current filters. Try clearing search or status filters."
+                : "No buses have been registered in the fleet yet."
+            }
+            action={
+              <Button onClick={handleOpenCreate} icon={Plus}>
+                Register First Bus
+              </Button>
             }
           />
-        )}
-      </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {visible.map((bus) => {
+              const currentStatus = bus.operationalStatus || bus.status || "Online";
+              const isBusy = currentStatus === "Running";
 
-      <AdminFormModal
-        open={Boolean(form)}
-        title={selectedBus ? `Configure ${selectedBus.name}` : "Assign Bus to Route"}
-        onClose={() => setForm(null)}
-        onSubmit={submit}
-        submitLabel={form?.id ? "Update Bus" : "Save Assignment"}
-        loading={saving}
-      >
-        {form && (
-          <div className="space-y-4">
-            {/* Database-driven Bus Selection */}
-            <div>
-              <Select
-                label="Select Bus"
-                value={form.busId}
-                onChange={(e) => handleBusSelect(e.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  -- Select an existing bus from database --
-                </option>
-                {buses.map((bus) => (
-                  <option key={bus.id} value={bus.id}>
-                    {bus.name} ({bus.number})
-                  </option>
-                ))}
-              </Select>
-              {selectedBus && (
-                <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-safar-ink">
-                  <span className="font-bold">{selectedBus.name}</span>
-                  <span className="text-safar-gray">
-                    {" "}
-                    · Number / Plate: <span className="font-semibold text-safar-ink">{selectedBus.number}</span> · Assigned Driver: {selectedBus.assignedDriver || "None"}
-                  </span>
-                </div>
-              )}
-            </div>
+              return (
+                <div
+                  key={bus.id}
+                  className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm transition-all hover:border-teal-500/50 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+                >
+                  <div>
+                    {/* Top row: ID badge & Operational Status Dropdown */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg dark:bg-slate-800 dark:text-slate-400">
+                          {bus.id}
+                        </span>
+                        <span className="text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300">
+                          {bus.category || "Standard"}
+                        </span>
+                      </div>
 
-            {/* Database-driven Route Selection */}
-            <div>
-              <Select
-                label="Select Route"
-                value={form.routeId}
-                onChange={(e) => setForm({ ...form, routeId: e.target.value })}
-                required
-              >
-                <option value="" disabled>
-                  -- Select an existing route from database --
-                </option>
-                {routes.map((route) => (
-                  <option key={route.id} value={route.id}>
-                    {route.name} ({route.direction || `${route.start} → ${route.destination}`})
-                  </option>
-                ))}
-              </Select>
-              {selectedRoute && (
-                <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-safar-ink">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-safar-ink">{selectedRoute.name}</span>
-                    <span className="font-semibold text-safar-teal">{selectedRoute.direction}</span>
-                  </div>
-                  <div className="mt-1 text-safar-gray">
-                    Pathway: <span className="font-medium text-safar-ink">{selectedRoute.start} → {selectedRoute.destination}</span>
-                  </div>
-                  {selectedRoute.stops?.length > 0 && (
-                    <div className="mt-2">
-                      <p className="font-semibold text-safar-gray mb-1">
-                        Ordered Stoppages ({selectedRoute.stops.length}):
-                      </p>
-                      <div className="flex flex-wrap items-center gap-1.5 font-medium text-safar-ink">
-                        {selectedRoute.stops.map((stop, index) => (
-                          <span key={stop} className="inline-flex items-center gap-1">
-                            <span className="rounded bg-white px-1.5 py-0.5 border border-slate-200 text-slate-700">
-                              {index + 1}. {stop}
-                            </span>
-                            {index < selectedRoute.stops.length - 1 && (
-                              <span className="text-safar-teal font-bold">→</span>
-                            )}
-                          </span>
-                        ))}
+                      <div className="relative">
+                        <select
+                          value={currentStatus}
+                          onChange={(e) => handleQuickStatusChange(bus.id, e.target.value)}
+                          className={`text-xs font-bold px-2.5 py-1 rounded-lg border appearance-none pr-6 cursor-pointer focus:outline-none transition-all ${
+                            statusStyles[currentStatus] || statusStyles.Online
+                          }`}
+                        >
+                          {OPERATIONAL_STATUSES.map((st) => (
+                            <option key={st} value={st}>
+                              {st}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] opacity-70">
+                          ▼
+                        </span>
                       </div>
                     </div>
-                  )}
+
+                    {/* Bus Name & Registration Number */}
+                    <div className="mt-3">
+                      <h3 className="text-lg font-black text-slate-900 tracking-tight dark:text-white">
+                        {bus.name || bus.busName}
+                      </h3>
+                      <p className="mt-0.5 font-mono text-xs font-semibold text-teal-600 dark:text-teal-400">
+                        Reg: {bus.number || bus.registrationNumber}
+                      </p>
+                    </div>
+
+                    {/* Capacity & Description */}
+                    <div className="mt-4 flex items-center gap-4 text-xs text-slate-600 dark:text-slate-400">
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <span className="text-slate-400">Capacity:</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{bus.capacity} seats</span>
+                      </div>
+                      {bus.imageUrl && (
+                        <div className="flex items-center gap-1 text-teal-600 dark:text-teal-400 font-medium">
+                          <ImageIcon className="h-3.5 w-3.5" />
+                          <span>Photo</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {bus.description && (
+                      <p className="mt-2.5 text-xs text-slate-500 line-clamp-2 dark:text-slate-400">
+                        {bus.description}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Actions footer */}
+                  <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
+                    <span className="text-[11px] text-slate-400">
+                      {isBusy ? "⚡ Operating on trip" : "Ready for assignment"}
+                    </span>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleOpenEdit(bus)}
+                        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                        title="Edit Bus Details"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(bus)}
+                        className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors dark:text-rose-400 dark:hover:bg-rose-950/40"
+                        title="Delete Bus"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Select
-                label="Category"
-                value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value })}
-              >
-                {["Student Bus", "Female Student Bus", "Teacher Bus", "Staff Bus"].map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </Select>
-              <label className="block">
-                <span className="mb-2 block text-sm font-semibold">Capacity</span>
-                <input
-                  className="focus-ring h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
-                  min="10"
-                  required
-                  type="number"
-                  value={form.capacity}
-                  onChange={(e) => setForm({ ...form, capacity: e.target.value })}
-                />
-              </label>
-            </div>
-
-            <Select
-              label="Status"
-              value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value })}
-            >
-              {[
-                "On Time",
-                "Boarding",
-                "En Route",
-                "Delayed",
-                "Arrived",
-                "Under Maintenance",
-              ].map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </Select>
-
-            <p className="rounded-xl bg-safar-mint px-3 py-2 text-xs text-safar-ink">
-              Bus and route selection is fully database-driven. The backend validates and links records by their primary identifiers.
-            </p>
+              );
+            })}
           </div>
         )}
-      </AdminFormModal>
 
-      <Modal
-        open={Boolean(deleteTarget)}
-        title={`Delete ${deleteTarget?.name}?`}
-        description="This permanently removes the bus through the backend. Existing reservation history remains governed by backend constraints."
-        confirmLabel="Delete Bus"
-        danger
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={confirmDelete}
-      />
+        {/* Featured Photos Manager */}
+        <div className="mt-10 pt-6 border-t border-slate-200 dark:border-slate-800">
+          <FeaturedBusPhotosManager />
+        </div>
+      </div>
+
+      {/* Add / Edit Bus Modal */}
+      {form && (
+        <AdminFormModal
+          isOpen={true}
+          onClose={() => !saving && setForm(null)}
+          title={form.id ? `Edit Bus: ${form.busName}` : "Add New Bus"}
+          subtitle="Configure registered fleet vehicle properties and status"
+        >
+          <form onSubmit={handleSaveBus} className="space-y-4">
+            {form.id && (
+              <div>
+                <label className="text-xs font-semibold text-slate-500">Bus ID</label>
+                <input
+                  type="text"
+                  value={form.id}
+                  disabled
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2 font-mono text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800"
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Bus Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.busName}
+                  onChange={(e) => setForm({ ...form, busName: e.target.value })}
+                  placeholder="e.g. Padma, Karnafuli-1"
+                  required
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 focus:border-teal-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Registration Number <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.registrationNumber}
+                  onChange={(e) => setForm({ ...form, registrationNumber: e.target.value })}
+                  placeholder="e.g. CTG-METRO-11-2233"
+                  required
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm font-mono text-slate-900 focus:border-teal-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Category <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={form.category}
+                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  {BUS_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Capacity (Seats) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="120"
+                  value={form.capacity}
+                  onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+                  required
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 focus:border-teal-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Operational Status <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={form.operationalStatus}
+                  onChange={(e) => setForm({ ...form, operationalStatus: e.target.value })}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  {OPERATIONAL_STATUSES.map((st) => (
+                    <option key={st} value={st}>
+                      {st}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Image URL (Optional)
+              </label>
+              <input
+                type="url"
+                value={form.imageUrl}
+                onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                placeholder="https://images.unsplash.com/..."
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 focus:border-teal-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Description (Optional)
+              </label>
+              <textarea
+                rows={3}
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Air-conditioned campus express coach with WiFi..."
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 focus:border-teal-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3">
+              <Button type="button" variant="outline" onClick={() => setForm(null)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={saving}>
+                {form.id ? "Update Bus" : "Register Bus"}
+              </Button>
+            </div>
+          </form>
+        </AdminFormModal>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <Modal
+          isOpen={true}
+          onClose={() => setDeleteTarget(null)}
+          title="Delete Bus Record"
+        >
+          <div className="space-y-4">
+            {(deleteTarget.operationalStatus === "Running" || deleteTarget.status === "Running") && (
+              <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                <div>
+                  <p className="font-bold">Active Running Trip Warning</p>
+                  <p className="mt-0.5">
+                    This bus is marked as <strong>Running</strong>. Deleting it will terminate and cancel its active trip.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Are you sure you want to delete bus{" "}
+              <strong>{deleteTarget.name || deleteTarget.busName}</strong> (
+              <span className="font-mono">{deleteTarget.number || deleteTarget.registrationNumber}</span>)?
+              This action cannot be undone.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={handleDeleteConfirm}>
+                Confirm Delete
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </DashboardLayout>
   );
 }

@@ -57,6 +57,10 @@ function notifySessionExpired() {
 
 export function refreshSession() {
   const currentRefreshToken = getStoredRefreshToken();
+  if (!currentRefreshToken) {
+    clearStoredTokens();
+    return Promise.resolve({ ok: false, status: 401 });
+  }
   refreshRequest ||= fetch(`${API_BASE_URL}/auth/refresh`, {
     method: "POST",
     credentials: "include",

@@ -35,6 +35,15 @@ export default function LiveTripPage() {
 
   const trip = summary?.trip;
   const liveBus = buses.find((bus) => bus.id === trip?.busId);
+  const resolvedLiveBus = liveBus || {
+    id: trip?.busId || "LIVE_BUS",
+    name: trip?.busName || "Assigned Bus",
+    currentLocation: { label: "CUET Transport Yard", lat: 22.4633, lng: 91.9745 },
+    nextStop: trip?.stops?.[1] || "En Route",
+    etaMinutes: 15,
+    speed: 0,
+    status: trip?.status || "Scheduled",
+  };
 
   const [gpsStatus, setGpsStatus] = useState("idle"); // idle | active | error
   const [gpsError, setGpsError] = useState("");
@@ -91,23 +100,23 @@ export default function LiveTripPage() {
         {gpsStatus === "error" && <div className="flex items-start gap-3 rounded-xl bg-red-50 p-4 text-sm text-red-700 ring-1 ring-red-200"><MapPin className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-bold">GPS Tracking Issue</p><p className="mt-1">{gpsError}</p></div></div>}
         {gpsStatus === "active" && <div className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"><span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" /><span className="relative h-2.5 w-2.5 rounded-full bg-emerald-500" /></span>GPS is active — broadcasting your location to all users</div>}
 
-        {trip && liveBus && <>
+        {trip && <>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              [MapPin, "Current location", liveBus.currentLocation.label],
-              [Navigation, "Next stop", liveBus.nextStop],
-              [Flag, "ETA", `${liveBus.etaMinutes} min`],
+              [MapPin, "Current location", resolvedLiveBus.currentLocation.label],
+              [Navigation, "Next stop", resolvedLiveBus.nextStop],
+              [Flag, "ETA", `${resolvedLiveBus.etaMinutes} min`],
               [Users, "Passengers", `${summary.boarded} / ${summary.passengerCount} boarded`],
             ].map(([Icon, label, value]) => <div key={label} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><Icon className="h-5 w-5 text-safar-teal" /><p className="mt-3 text-xs font-bold uppercase text-safar-gray">{label}</p><p className="mt-1 break-words font-bold text-safar-ink">{value}</p></div>)}
           </section>
 
           <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <div className="min-w-0"><LiveMap buses={[liveBus]} selectedId={liveBus.id} highlightedId={liveBus.id} /></div>
-            <LiveBusDetails bus={{ ...liveBus, route: trip.route }} title="Assigned Bus Live GPS" highlighted />
+            <div className="min-w-0"><LiveMap buses={[resolvedLiveBus]} selectedId={resolvedLiveBus.id} highlightedId={resolvedLiveBus.id} /></div>
+            <LiveBusDetails bus={{ ...resolvedLiveBus, route: trip.route }} title="Assigned Bus Live GPS" highlighted />
           </section>
 
           <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="text-lg font-bold text-safar-ink">{trip.route}</h2><p className="mt-1 text-sm text-safar-gray">{trip.departureTime} - {trip.arrivalTime} | {liveBus.speed} km/h</p></div><div className="grid gap-2 sm:grid-cols-3"><Button icon={CirclePlay} disabled={trip.status === "In Progress" || trip.status === "Completed"} onClick={() => setStatus("In Progress")}>Start Trip</Button><Link className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-safar-ink shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50" to="/driver/delay"><CirclePause className="h-4 w-4" /> Report Delay</Link><Button variant="danger" icon={Flag} disabled={trip.status === "Completed"} onClick={() => setEndOpen(true)}>End Trip</Button></div></div>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="text-lg font-bold text-safar-ink">{trip.route}</h2><p className="mt-1 text-sm text-safar-gray">{trip.departureTime} - {trip.arrivalTime || "On Schedule"} | {resolvedLiveBus.speed} km/h</p></div><div className="grid gap-2 sm:grid-cols-3"><Button icon={CirclePlay} disabled={trip.status === "In Progress" || trip.status === "Completed"} onClick={() => setStatus("In Progress")}>Start Trip</Button><Link className="focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-safar-ink shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50" to="/driver/delay"><CirclePause className="h-4 w-4" /> Report Delay</Link><Button variant="danger" icon={Flag} disabled={trip.status === "Completed"} onClick={() => setEndOpen(true)}>End Trip</Button></div></div>
           </section>
 
           {trip.stops?.length > 0 && (

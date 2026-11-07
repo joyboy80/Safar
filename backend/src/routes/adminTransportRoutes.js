@@ -3,6 +3,7 @@ import {
   getAdminAssignments, getAdminBuses, getAdminDrivers, getAdminReservations, getAdminRoutes, getAdminSchedules, getAdminUsers,
   getAlerts, getAnalytics, getMaintenance, getOverview, putAdminBus, putAdminDriver, putAdminReservation, putAdminRoute,
   putAdminAssignment, putAdminSchedule, putAdminUser, putMaintenance, removeAdminAssignment, removeAdminBus, removeAdminRoute, removeAdminSchedule,
+  patchAdminBusStatus, postAdminSchedule, patchAdminScheduleCancel,
   getPredictionsOccupancy, getPredictionsInsights, getRecommendationsAllocations
 } from "../controllers/transportController.js";
 import authMiddleware from "../middleware/authMiddleware.js";
@@ -18,7 +19,9 @@ import { uploadBusPhotoMiddleware } from "../middleware/uploadMiddleware.js";
 const router = Router();
 router.use(authMiddleware, requireRole(ROLES.TRANSPORT_ADMIN));
 router.get("/buses", getAdminBuses);
+router.post("/buses", putAdminBus);
 router.put("/buses", putAdminBus);
+router.patch("/buses/:id/status", patchAdminBusStatus);
 router.delete("/buses/:id", removeAdminBus);
 router.get("/routes", getAdminRoutes);
 const routeMutationBlocked = (_req, res) => res.status(405).json({
@@ -31,7 +34,10 @@ const routeMutationBlocked = (_req, res) => res.status(405).json({
 router.put("/routes", routeMutationBlocked);
 router.delete("/routes/:id", routeMutationBlocked);
 router.get("/schedules", getAdminSchedules);
+router.post("/schedules", postAdminSchedule);
 router.put("/schedules", putAdminSchedule);
+router.put("/schedules/:id", putAdminSchedule);
+router.patch("/schedules/:id/cancel", patchAdminScheduleCancel);
 router.delete("/schedules/:id", removeAdminSchedule);
 router.get("/assignments", getAdminAssignments);
 router.put("/assignments", putAdminAssignment);
