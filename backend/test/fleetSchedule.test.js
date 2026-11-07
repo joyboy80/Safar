@@ -88,3 +88,4 @@ test("createScheduleRecord validates required fields and rejects past dates", as
     (err) => err.code === "PAST_DATE_NOT_ALLOWED"
   );
 });
+
