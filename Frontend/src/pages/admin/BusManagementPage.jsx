@@ -35,9 +35,6 @@ import {
 const OPERATIONAL_STATUSES = ["Online", "Running", "Stopped", "Maintenance"];
 
 const BUS_CATEGORIES = [
-  "AC",
-  "Non-AC",
-  "University Shuttle",
   "Student Bus",
   "Female Student Bus",
   "Teacher Bus",
@@ -55,7 +52,7 @@ const blankBus = (defaultRoute = "", defaultStops = []) => ({
   id: "",
   busName: "",
   registrationNumber: "",
-  category: "University Shuttle",
+  category: "Student Bus",
   capacity: 40,
   route: defaultRoute || "",
   routeId: "",
