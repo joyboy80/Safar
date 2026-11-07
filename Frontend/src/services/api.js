@@ -150,9 +150,10 @@ export async function apiRequest(path, { method = "GET", body, token, signal, re
   let payload = null;
   let textBody = null;
   try {
-    payload = await response.json();
-  } catch (e) {
-    textBody = await response.text().catch(() => null);
+    textBody = await response.text();
+    payload = JSON.parse(textBody);
+  } catch {
+    // textBody contains unparsed text/html if not JSON
   }
 
   if (!response.ok) {
