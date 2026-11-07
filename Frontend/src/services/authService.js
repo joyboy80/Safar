@@ -88,13 +88,24 @@ export async function verifyOtp(email, otp) {
 }
 
 export async function forgotPassword(email) {
-  return apiRequest("/auth/forgot-password", { method: "POST", body: { email } });
+  const clientOrigin = typeof window !== "undefined" ? window.location.origin : undefined;
+  return apiRequest("/auth/forgot-password", {
+    method: "POST",
+    body: { email, clientOrigin },
+  });
 }
 
-export async function resetPassword(accessToken, password, confirmPassword) {
+export async function resetPassword(tokenOrCredentials, password, confirmPassword) {
+  if (typeof tokenOrCredentials === "object" && tokenOrCredentials !== null) {
+    return apiRequest("/auth/reset-password", {
+      method: "POST",
+      body: tokenOrCredentials,
+    });
+  }
+
   return apiRequest("/auth/reset-password", {
     method: "POST",
-    token: accessToken,
+    token: tokenOrCredentials,
     body: { password, confirmPassword },
   });
 }

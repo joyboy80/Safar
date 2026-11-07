@@ -42,29 +42,7 @@ export async function verifyEmailTransport({ requireConfigured = false } = {}) {
   }
 }
 
-export async function sendRegistrationOtp(email, otp, { clientOrigin } = {}) {
-  const text = [
-    "SAFAR",
-    "University Transportation System",
-    "",
-    "Your verification code is:",
-    otp,
-    "",
-    `This code expires in ${env.otpExpiresMinutes} minutes.`,
-    "",
-    "If you did not request this verification code, please ignore this email.",
-  ].join("\n");
-
-  const html = `<!doctype html>
-  <html><body style="margin:0;background:#f4f7f6;font-family:Arial,sans-serif;color:#18332c">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px">
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fff;border-radius:14px;overflow:hidden">
-        <tr><td style="padding:24px 32px;background:#075e54;color:#fff"><strong style="font-size:26px">SAFAR</strong><br><span>University Transportation System</span></td></tr>
-        <tr><td style="padding:32px;text-align:center"><p>Your verification code is:</p><div style="font-size:36px;font-weight:700;letter-spacing:10px;margin:22px 0">${otp}</div><p>This code expires in ${env.otpExpiresMinutes} minutes.</p><p style="color:#687773;font-size:14px">If you did not request this verification code, please ignore this email.</p></td></tr>
-      </table>
-    </td></tr></table>
-  </body></html>`;
-
+async function deliverEmail({ to, subject, text, html, clientOrigin, fallbackLog }) {
   // 1. If Resend API key is provided, use HTTPS Port 443
   if (process.env.RESEND_API_KEY) {
     try {
@@ -76,8 +54,8 @@ export async function sendRegistrationOtp(email, otp, { clientOrigin } = {}) {
         },
         body: JSON.stringify({
           from: env.smtpFrom || "SAFAR <onboarding@resend.dev>",
-          to: [email],
-          subject: "Your SAFAR verification code",
+          to: [to],
+          subject,
           text,
           html,
         }),
@@ -98,8 +76,8 @@ export async function sendRegistrationOtp(email, otp, { clientOrigin } = {}) {
     try {
       const info = await getTransporter().sendMail({
         from: env.smtpFrom,
-        to: email,
-        subject: "Your SAFAR verification code",
+        to,
+        subject,
         text,
         html,
       });
@@ -131,8 +109,8 @@ export async function sendRegistrationOtp(email, otp, { clientOrigin } = {}) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            to: email,
-            subject: "Your SAFAR verification code",
+            to,
+            subject,
             text,
             html,
             from: env.smtpFrom,
@@ -145,7 +123,7 @@ export async function sendRegistrationOtp(email, otp, { clientOrigin } = {}) {
         });
         if (relayRes.ok) {
           const payload = await relayRes.json().catch(() => ({}));
-          console.info(`[SAFAR email] Successfully sent verification email via relay (${relayUrl})`);
+          console.info(`[SAFAR email] Successfully sent email via relay (${relayUrl})`);
           return { delivered: true, delivery: "EMAIL", messageId: payload.messageId };
         }
         console.warn(`[SAFAR email] Relay ${relayUrl} returned status ${relayRes.status}`);
@@ -159,8 +137,8 @@ export async function sendRegistrationOtp(email, otp, { clientOrigin } = {}) {
       try {
         const info = await getTransporter().sendMail({
           from: env.smtpFrom,
-          to: email,
-          subject: "Your SAFAR verification code",
+          to,
+          subject,
           text,
           html,
         });
@@ -172,6 +150,94 @@ export async function sendRegistrationOtp(email, otp, { clientOrigin } = {}) {
   }
 
   // 5. Fallback: Log to backend terminal only
-  console.info(`[SAFAR OTP Console Fallback] Code for ${email}: ${otp} (expires in ${env.otpExpiresMinutes} minutes)`);
+  if (fallbackLog) {
+    console.info(`[SAFAR Console Fallback] ${fallbackLog}`);
+  }
   return { delivered: false, delivery: "DEVELOPMENT_CONSOLE" };
+}
+
+export async function sendRegistrationOtp(email, otp, { clientOrigin } = {}) {
+  const text = [
+    "SAFAR",
+    "University Transportation System",
+    "",
+    "Your verification code is:",
+    otp,
+    "",
+    `This code expires in ${env.otpExpiresMinutes} minutes.`,
+    "",
+    "If you did not request this verification code, please ignore this email.",
+  ].join("\n");
+
+  const html = `<!doctype html>
+  <html><body style="margin:0;background:#f4f7f6;font-family:Arial,sans-serif;color:#18332c">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fff;border-radius:14px;overflow:hidden">
+        <tr><td style="padding:24px 32px;background:#075e54;color:#fff"><strong style="font-size:26px">SAFAR</strong><br><span>University Transportation System</span></td></tr>
+        <tr><td style="padding:32px;text-align:center"><p>Your verification code is:</p><div style="font-size:36px;font-weight:700;letter-spacing:10px;margin:22px 0">${otp}</div><p>This code expires in ${env.otpExpiresMinutes} minutes.</p><p style="color:#687773;font-size:14px">If you did not request this verification code, please ignore this email.</p></td></tr>
+      </table>
+    </td></tr></table>
+  </body></html>`;
+
+  return deliverEmail({
+    to: email,
+    subject: "Your SAFAR verification code",
+    text,
+    html,
+    clientOrigin,
+    fallbackLog: `Code for ${email}: ${otp} (expires in ${env.otpExpiresMinutes} minutes)`,
+  });
+}
+
+export async function sendPasswordResetEmail(email, { resetLink, emailOtp, clientOrigin } = {}) {
+  const text = [
+    "SAFAR",
+    "University Transportation System",
+    "",
+    "Password Reset Request",
+    "",
+    "Click the link below to reset your password:",
+    resetLink,
+    "",
+    ...(emailOtp ? [
+      "Or enter this 8-digit recovery code on the reset page:",
+      emailOtp,
+      "",
+      `Reset password page: ${clientOrigin || ""}/reset-password`,
+      "",
+    ] : []),
+    "If you did not request this password reset, please ignore this email. Your password will remain unchanged.",
+  ].join("\n");
+
+  const html = `<!doctype html>
+  <html><body style="margin:0;background:#f4f7f6;font-family:Arial,sans-serif;color:#18332c">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.06)">
+        <tr><td style="padding:24px 32px;background:#075e54;color:#fff"><strong style="font-size:26px;letter-spacing:1px">SAFAR</strong><br><span style="font-size:13px;opacity:0.9">University Transportation System</span></td></tr>
+        <tr><td style="padding:32px">
+          <h2 style="margin:0 0 16px 0;font-size:20px;color:#18332c">Password Reset Request</h2>
+          <p style="font-size:15px;line-height:1.5;color:#334155;margin:0 0 24px 0">We received a request to reset your password. Click the button below to choose a new password directly:</p>
+          <div style="text-align:center;margin:28px 0">
+            <a href="${resetLink}" style="background-color:#075e54;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:8px;font-size:16px;font-weight:600;display:inline-block">Reset My Password</a>
+          </div>
+          ${emailOtp ? `
+          <div style="margin:28px 0;padding:20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center">
+            <p style="margin:0 0 8px 0;font-size:13px;font-weight:600;text-transform:uppercase;color:#64748b;letter-spacing:0.5px">Or enter this 8-digit recovery code on the reset page:</p>
+            <div style="font-size:28px;font-weight:700;letter-spacing:8px;color:#075e54;font-family:monospace;margin:10px 0">${emailOtp}</div>
+            <p style="margin:8px 0 0 0;font-size:13px;color:#64748b">Reset page: <a href="${clientOrigin || ""}/reset-password" style="color:#075e54;text-decoration:underline">${clientOrigin || ""}/reset-password</a></p>
+          </div>` : ""}
+          <p style="color:#687773;font-size:13px;line-height:1.4;margin:24px 0 0 0">If you did not request a password reset, you can safely ignore this email. Your account remains secure.</p>
+        </td></tr>
+      </table>
+    </td></tr></table>
+  </body></html>`;
+
+  return deliverEmail({
+    to: email,
+    subject: "Reset your SAFAR password",
+    text,
+    html,
+    clientOrigin,
+    fallbackLog: `Password reset link for ${email}: ${resetLink} (OTP: ${emailOtp})`,
+  });
 }

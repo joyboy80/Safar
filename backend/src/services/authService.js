@@ -3,6 +3,7 @@ import { getSupabaseAdmin, getSupabaseAuth } from "../config/supabase.js";
 import AppError from "../utils/AppError.js";
 import { issueRegistrationOtp } from "./otpService.js";
 import { createProfile, getProfileByAuthUserId, getProfileByEmail, serializeProfile, updateProfile } from "./profileService.js";
+import { sendPasswordResetEmail } from "./emailService.js";
 import { assertProfilePortalAccess } from "../utils/driverAccess.js";
 
 function serializeSession(session) {
@@ -159,11 +160,81 @@ export async function refreshUserSession(refreshToken) {
   return { user, session: serializeSession(data.session) };
 }
 
-export async function requestPasswordReset(email) {
-  const { error } = await getSupabaseAuth().auth.resetPasswordForEmail(email, {
-    redirectTo: `${env.frontendUrl.replace(/\/$/, "")}/reset-password`,
+function resolveClientOrigin(candidate) {
+  if (candidate && typeof candidate === "string") {
+    try {
+      const parsed = new URL(candidate);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        return parsed.origin;
+      }
+    } catch {
+      // Ignore URL parse failure
+    }
+  }
+  return (env.frontendUrl || "http://localhost:5173").replace(/\/$/, "");
+}
+
+export async function requestPasswordReset(email, { clientOrigin } = {}) {
+  const targetOrigin = resolveClientOrigin(clientOrigin);
+  const redirectTo = `${targetOrigin}/reset-password`;
+
+  try {
+    const admin = getSupabaseAdmin();
+    const { data, error } = await admin.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: { redirectTo },
+    });
+
+    if (error) {
+      if (error.status === 404 || error.code === "user_not_found" || /not found/i.test(error.message || "")) {
+        console.info(`[SAFAR auth] Password reset requested for non-existent user: ${email}`);
+        return { success: true };
+      }
+      throw error;
+    }
+
+    const resetLink = data?.properties?.action_link;
+    const emailOtp = data?.properties?.email_otp;
+
+    await sendPasswordResetEmail(email, {
+      resetLink,
+      emailOtp,
+      clientOrigin: targetOrigin,
+    });
+
+    return { success: true };
+  } catch (err) {
+    console.warn(`[SAFAR auth] Custom recovery email delivery failed for ${email}: ${err.message}. Trying Supabase fallback...`);
+    const { error: fallbackError } = await getSupabaseAuth().auth.resetPasswordForEmail(email, {
+      redirectTo,
+    });
+    if (fallbackError) {
+      console.error("[SAFAR auth] Supabase resetPasswordForEmail fallback failed:", fallbackError);
+      throw new AppError(400, "Unable to send the password-reset email.", "PASSWORD_RESET_REQUEST_FAILED");
+    }
+    return { success: true };
+  }
+}
+
+export async function resetPasswordWithOtp(email, otp, password) {
+  const { data, error } = await getSupabaseAuth().auth.verifyOtp({
+    email,
+    token: otp,
+    type: "recovery",
   });
-  if (error) throw new AppError(400, "Unable to send the password-reset email.", "PASSWORD_RESET_REQUEST_FAILED");
+  if (error || !data?.user) {
+    throw new AppError(400, error?.message || "Invalid or expired recovery code.", "INVALID_OTP");
+  }
+
+  const { error: updateError } = await getSupabaseAdmin().auth.admin.updateUserById(data.user.id, { password });
+  if (updateError) {
+    throw new AppError(400, "Unable to reset the password.", "PASSWORD_RESET_FAILED");
+  }
+
+  if (data.session?.access_token) {
+    await getSupabaseAdmin().auth.admin.signOut(data.session.access_token, "global").catch(() => undefined);
+  }
 }
 
 export async function resetPassword(accessToken, password) {

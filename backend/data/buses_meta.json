@@ -6,5 +6,26 @@
     "registrationNumber": "Cuet-1",
     "operationalStatus": "Online",
     "updatedAt": "2026-11-07T19:30:43.250Z"
+  },
+  "BUS-03469902": {
+    "category": "Teacher Bus",
+    "route": "Route 3 — via Flyover & GEC",
+    "routeId": "CUET_STATION_FLYOVER_GEC",
+    "stops": [
+      "CUET Campus",
+      "Noapara",
+      "Rastar Matha",
+      "Bahaddarhat",
+      "Muradpur Flyover",
+      "GEC",
+      "Wasa",
+      "Lalkhan Bazar",
+      "Station"
+    ],
+    "description": "",
+    "imageUrl": null,
+    "registrationNumber": "CUET-3",
+    "operationalStatus": "Online",
+    "updatedAt": "2026-11-07T20:49:34.795Z"
   }
 }

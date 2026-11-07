@@ -5,6 +5,7 @@ import {
   registerUser,
   requestPasswordReset,
   resetPassword as resetUserPassword,
+  resetPasswordWithOtp,
   updateCurrentProfile,
 } from "../services/authService.js";
 import { issueRegistrationOtp, verifyRegistrationOtp } from "../services/otpService.js";
@@ -120,15 +121,25 @@ export const refresh = asyncHandler(async (req, res) => {
 
 export const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = validateForgotPassword(req.body);
-  await requestPasswordReset(email);
+  const clientOrigin = req.body?.clientOrigin || req.headers?.origin || req.headers?.referer;
+  await requestPasswordReset(email, { clientOrigin });
   return sendSuccess(res, { message: "If an account exists for that email, a secure password-reset link has been sent." });
 });
 
 export const resetPassword = asyncHandler(async (req, res) => {
-  const accessToken = readBearerToken(req.headers.authorization);
-  if (!accessToken) throw new AppError(401, "A password-reset access token is required.", "INVALID_RESET_TOKEN");
+  const accessToken = readBearerToken(req.headers.authorization) || req.body?.accessToken;
   const { password } = validateResetPassword(req.body);
-  await resetUserPassword(accessToken, password);
+
+  if (accessToken) {
+    await resetUserPassword(accessToken, password);
+  } else if (req.body?.email && (req.body?.otp || req.body?.code)) {
+    const email = String(req.body.email).trim().toLowerCase();
+    const otp = String(req.body.otp || req.body.code).trim();
+    await resetPasswordWithOtp(email, otp, password);
+  } else {
+    throw new AppError(401, "A password-reset access token or recovery code is required.", "INVALID_RESET_TOKEN");
+  }
+
   return sendSuccess(res, { message: "Password reset successful. Sign in with the new password." });
 });
 
