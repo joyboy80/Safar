@@ -27,24 +27,21 @@ import {
 } from "../validators/authValidator.js";
 
 export const register = asyncHandler(async (req, res) => {
-  const result = await registerUser(validateRegistration(req.body));
-  const emailed = result.verification.delivery === "EMAIL";
+  const clientOrigin = req.headers.origin || req.headers.referer || null;
+  const result = await registerUser(validateRegistration(req.body), { clientOrigin });
   return sendSuccess(res, {
     status: 201,
     data: result,
-    message: emailed
-      ? "Registration started. Enter the code sent to your email."
-      : "Registration started. Email delivery is not configured, so the development OTP was printed in the backend terminal.",
+    message: "Registration started. Enter the code sent to your email.",
   });
 });
 
 export const sendOtp = asyncHandler(async (req, res) => {
-  const result = await issueRegistrationOtp(validateOtpRequest(req.body).email);
+  const clientOrigin = req.headers.origin || req.headers.referer || null;
+  const result = await issueRegistrationOtp(validateOtpRequest(req.body).email, { clientOrigin });
   return sendSuccess(res, {
     data: result,
-    message: result.delivery === "EMAIL"
-      ? "A verification code was sent to your email."
-      : "Email delivery is not configured, so the development OTP was printed in the backend terminal.",
+    message: "A verification code was sent to your email.",
   });
 });
 

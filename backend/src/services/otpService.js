@@ -22,7 +22,7 @@ async function latestVerification(email, { activeOnly = false } = {}) {
   return data;
 }
 
-export async function issueRegistrationOtp(email) {
+export async function issueRegistrationOtp(email, { clientOrigin } = {}) {
   const profile = await getProfileByEmail(email);
   if (!profile) throw new AppError(404, "No pending registration was found for this email.", "REGISTRATION_NOT_FOUND");
   if (profile.is_verified) throw new AppError(409, "This email is already verified.", "EMAIL_ALREADY_VERIFIED");
@@ -53,7 +53,7 @@ export async function issueRegistrationOtp(email) {
 
   let delivery;
   try {
-    delivery = await sendRegistrationOtp(email, otp);
+    delivery = await sendRegistrationOtp(email, otp, { clientOrigin });
   } catch (error) {
     await admin.from("email_verifications").update({ invalidated_at: new Date().toISOString() }).eq("id", verification.id);
     throw error;
@@ -64,7 +64,6 @@ export async function issueRegistrationOtp(email) {
     expiresAt: verification.expires_at,
     resendAfterSeconds: env.otpResendCooldownSeconds,
     delivery: delivery.delivery,
-    ...(delivery?.devOtp ? { devOtp: delivery.devOtp } : {}),
   };
 }
 

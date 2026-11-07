@@ -81,7 +81,7 @@ async function rejectUnavailableProfile(profile, accessToken) {
   }
 }
 
-export async function registerUser(input) {
+export async function registerUser(input, { clientOrigin } = {}) {
   let profile = await getProfileByEmail(input.email);
   if (profile) {
     if (profile.is_verified) {
@@ -92,7 +92,7 @@ export async function registerUser(input) {
     const admin = getSupabaseAdmin();
     await admin.auth.admin.updateUserById(profile.auth_user_id, { password: input.password }).catch(() => {});
     
-    const otp = await issueRegistrationOtp(input.email);
+    const otp = await issueRegistrationOtp(input.email, { clientOrigin });
     return { user: serializeProfile(profile), verification: otp, session: null };
   }
 
@@ -122,7 +122,7 @@ export async function registerUser(input) {
     throw profileError;
   }
 
-  const otp = await issueRegistrationOtp(input.email);
+  const otp = await issueRegistrationOtp(input.email, { clientOrigin });
   return { user: serializeProfile(profile), verification: otp, session: null };
 }
 

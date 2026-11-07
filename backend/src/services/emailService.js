@@ -42,7 +42,7 @@ export async function verifyEmailTransport({ requireConfigured = false } = {}) {
   }
 }
 
-export async function sendRegistrationOtp(email, otp) {
+export async function sendRegistrationOtp(email, otp, { clientOrigin } = {}) {
   const text = [
     "SAFAR",
     "University Transportation System",
@@ -65,7 +65,7 @@ export async function sendRegistrationOtp(email, otp) {
     </td></tr></table>
   </body></html>`;
 
-  // 1. If Resend API key is provided, use HTTPS Port 443 (never blocked on Render Free tier)
+  // 1. If Resend API key is provided, use HTTPS Port 443
   if (process.env.RESEND_API_KEY) {
     try {
       const response = await fetch("https://api.resend.com/emails", {
@@ -93,8 +93,8 @@ export async function sendRegistrationOtp(email, otp) {
     }
   }
 
-  // 2. If SMTP is configured, attempt delivery with a strict 4-second timeout
-  if (isEmailDeliveryConfigured()) {
+  // 2. If direct SMTP is available (e.g. running locally or on unblocked hosts), try it with a 3s timeout
+  if (isEmailDeliveryConfigured() && env.nodeEnv !== "production") {
     try {
       const info = await getTransporter().sendMail({
         from: env.smtpFrom,
@@ -105,11 +105,73 @@ export async function sendRegistrationOtp(email, otp) {
       });
       return { delivered: true, delivery: "EMAIL", messageId: info?.messageId };
     } catch (error) {
-      console.warn("[SAFAR email] SMTP delivery timed out or blocked (common on Render Free tier):", error?.message);
+      console.warn("[SAFAR email] Direct SMTP failed or timed out:", error?.message);
     }
   }
 
-  // 3. Graceful fallback: Never hang or crash the registration flow.
-  console.info(`[SAFAR OTP Fallback] Verification code for ${email}: ${otp} (expires in ${env.otpExpiresMinutes} minutes)`);
-  return { delivered: false, delivery: "DEVELOPMENT_CONSOLE", devOtp: otp };
+  // 3. Vercel Gmail Relay (unblocks Port 587 on Render Free tier via Vercel Serverless)
+  if (isEmailDeliveryConfigured()) {
+    const relayCandidates = [];
+    if (clientOrigin && /^https?:\/\//i.test(clientOrigin) && !clientOrigin.includes("localhost")) {
+      relayCandidates.push(`${clientOrigin.replace(/\/$/, "")}/api/send-email`);
+    }
+    if (process.env.FRONTEND_URL && !process.env.FRONTEND_URL.includes("localhost")) {
+      relayCandidates.push(`${process.env.FRONTEND_URL.replace(/\/$/, "")}/api/send-email`);
+    }
+    for (const origin of env.clientOrigins || []) {
+      if (origin && !origin.includes("localhost") && /^https?:\/\//i.test(origin)) {
+        const url = `${origin.replace(/\/$/, "")}/api/send-email`;
+        if (!relayCandidates.includes(url)) relayCandidates.push(url);
+      }
+    }
+
+    for (const relayUrl of relayCandidates) {
+      try {
+        const relayRes = await fetch(relayUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: email,
+            subject: "Your SAFAR verification code",
+            text,
+            html,
+            from: env.smtpFrom,
+            auth: {
+              user: env.smtpUser,
+              pass: env.smtpPassword,
+            },
+          }),
+          signal: AbortSignal.timeout(9000),
+        });
+        if (relayRes.ok) {
+          const payload = await relayRes.json().catch(() => ({}));
+          console.info(`[SAFAR email] Successfully sent verification email via relay (${relayUrl})`);
+          return { delivered: true, delivery: "EMAIL", messageId: payload.messageId };
+        }
+        console.warn(`[SAFAR email] Relay ${relayUrl} returned status ${relayRes.status}`);
+      } catch (relayError) {
+        console.warn(`[SAFAR email] Relay to ${relayUrl} failed:`, relayError?.message);
+      }
+    }
+
+    // 4. If on production and relay was skipped/failed, attempt direct SMTP as last resort
+    if (env.nodeEnv === "production") {
+      try {
+        const info = await getTransporter().sendMail({
+          from: env.smtpFrom,
+          to: email,
+          subject: "Your SAFAR verification code",
+          text,
+          html,
+        });
+        return { delivered: true, delivery: "EMAIL", messageId: info?.messageId };
+      } catch (error) {
+        console.warn("[SAFAR email] Production direct SMTP failed:", error?.message);
+      }
+    }
+  }
+
+  // 5. Fallback: Log to backend terminal only
+  console.info(`[SAFAR OTP Console Fallback] Code for ${email}: ${otp} (expires in ${env.otpExpiresMinutes} minutes)`);
+  return { delivered: false, delivery: "DEVELOPMENT_CONSOLE" };
 }
