@@ -326,42 +326,87 @@ export async function removeBusRecord(busId) {
 // ─── INTEGRATED SCHEDULING ───
 
 export async function listAllSchedules({ date, busId, driverId, status } = {}) {
-  const [schedules, busesList] = await Promise.all([
-    readSchedulesData(),
-    listAllBuses(),
-  ]);
+  const admin = getSupabaseAdmin();
 
-  const busMap = new Map(busesList.map((b) => [b.id, b]));
+  let query = admin
+    .from("transport_trips")
+    .select("*, buses(*), driver:profiles!driver_profile_id(id, full_name, email, phone)")
+    .order("service_date", { ascending: false });
 
-  let filtered = schedules.map((s) => {
-    const liveBus = busMap.get(s.busId);
-    return {
-      ...s,
-      currentBusStatus: liveBus?.operationalStatus || BUS_STATUSES.ONLINE,
-      busCategory: s.busCategory || liveBus?.category || "Student Bus",
-      busRegistrationNumber: s.registrationNumber || liveBus?.registrationNumber || "—",
-    };
-  });
+  if (date) query = query.eq("service_date", date);
+  if (busId) query = query.eq("bus_id", busId);
+  if (driverId) query = query.eq("driver_profile_id", driverId);
 
-  if (date) {
-    filtered = filtered.filter((s) => s.scheduleDate === date);
+  const { data: dbRows, error } = await query;
+  if (error) {
+    console.error("[Fleet] DB error querying transport_trips:", error.message);
   }
-  if (busId) {
-    filtered = filtered.filter((s) => s.busId === busId);
+
+  let mapped = [];
+  if (dbRows && dbRows.length > 0) {
+    mapped = dbRows.map((r) => {
+      const bus = Array.isArray(r.buses) ? r.buses[0] : r.buses;
+      const driver = Array.isArray(r.driver) ? r.driver[0] : r.driver;
+
+      let schedStatus = SCHEDULE_STATUSES.SCHEDULED;
+      if (r.status === "Completed") schedStatus = SCHEDULE_STATUSES.COMPLETED;
+      else if (r.status === "Cancelled" || r.operational_status === "CANCELLED") schedStatus = SCHEDULE_STATUSES.CANCELLED;
+      else if (r.status === "Running" || r.status === "In Progress" || r.operational_status === "RUNNING") schedStatus = SCHEDULE_STATUSES.RUNNING;
+
+      return {
+        id: r.id,
+        scheduleId: r.id,
+        busId: r.bus_id,
+        busName: bus?.name || "Bus",
+        registrationNumber: bus?.number || "—",
+        busRegistrationNumber: bus?.number || "—",
+        busCategory: bus?.category || "Student Bus",
+        capacity: bus?.capacity || 40,
+        driverId: r.driver_profile_id,
+        driverName: driver?.full_name || "Assigned Driver",
+        routeId: r.route,
+        routeName: r.route,
+        routeDirection: r.direction === "OUTBOUND" ? "CUET → Station" : "Station → CUET",
+        departureTime: r.departure_time,
+        scheduleDate: r.service_date,
+        scheduleStatus: schedStatus,
+        currentBusStatus: bus?.status || BUS_STATUSES.ONLINE,
+        startedAt: null,
+        completedAt: null,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      };
+    });
+  } else {
+    // Fallback to local file if database query returned no records
+    const [fileSchedules, busesList] = await Promise.all([
+      readSchedulesData(),
+      listAllBuses(),
+    ]);
+    const busMap = new Map(busesList.map((b) => [b.id, b]));
+    mapped = fileSchedules.map((s) => {
+      const liveBus = busMap.get(s.busId);
+      return {
+        ...s,
+        currentBusStatus: liveBus?.operationalStatus || BUS_STATUSES.ONLINE,
+        busCategory: s.busCategory || liveBus?.category || "Student Bus",
+        busRegistrationNumber: s.registrationNumber || liveBus?.registrationNumber || "—",
+      };
+    });
+    if (date) mapped = mapped.filter((s) => s.scheduleDate === date);
+    if (busId) mapped = mapped.filter((s) => s.busId === busId);
+    if (driverId) mapped = mapped.filter((s) => s.driverId === driverId);
   }
-  if (driverId) {
-    filtered = filtered.filter((s) => s.driverId === driverId);
-  }
+
   if (status) {
-    filtered = filtered.filter((s) => s.scheduleStatus === status);
+    mapped = mapped.filter((s) => s.scheduleStatus === status);
   }
 
-  // Sort by date descending, then departureTime ascending
-  return filtered.sort((a, b) => {
+  return mapped.sort((a, b) => {
     if (a.scheduleDate !== b.scheduleDate) {
       return b.scheduleDate.localeCompare(a.scheduleDate);
     }
-    return a.departureTime.localeCompare(b.departureTime);
+    return (a.departureTime || "").localeCompare(b.departureTime || "");
   });
 }
 
@@ -633,10 +678,8 @@ export async function deleteScheduleRecord(scheduleId) {
 // ─── DRIVER TRIP CONTROLS ───
 
 export async function getDriverSchedules(driverProfileId, date = todayDate()) {
-  const schedules = await readSchedulesData();
-  return schedules.filter(
-    (s) => s.driverId === driverProfileId && s.scheduleDate === date
-  ).map((s) => ({
+  const schedules = await listAllSchedules({ driverId: driverProfileId, date });
+  return schedules.map((s) => ({
     id: s.id,
     tripId: s.id,
     busId: s.busId,
@@ -644,21 +687,12 @@ export async function getDriverSchedules(driverProfileId, date = todayDate()) {
     busNumber: s.registrationNumber,
     registrationNumber: s.registrationNumber,
     busCategory: s.busCategory,
-    capacity: s.capacity,
-    route: s.routeName,
+    assignedRoute: s.routeName,
     routeName: s.routeName,
-    routeDirection: s.routeDirection,
     departureTime: s.departureTime,
-    arrivalTime: s.departureTime,
-    date: s.scheduleDate,
     scheduleDate: s.scheduleDate,
-    status: s.scheduleStatus === SCHEDULE_STATUSES.RUNNING ? "In Progress"
-      : s.scheduleStatus === SCHEDULE_STATUSES.COMPLETED ? "Completed"
-      : s.scheduleStatus === SCHEDULE_STATUSES.CANCELLED ? "Cancelled"
-      : "Upcoming",
     scheduleStatus: s.scheduleStatus,
-    startedAt: s.startedAt,
-    completedAt: s.completedAt,
+    status: s.scheduleStatus,
   }));
 }
 
