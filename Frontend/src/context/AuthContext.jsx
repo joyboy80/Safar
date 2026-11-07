@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import * as authService from "../services/authService";
+import { getStoredToken } from "../services/api";
 
 const AuthContext = createContext(null);
 
@@ -53,7 +54,7 @@ export function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       user: auth?.user || null,
-      token: null,
+      token: getStoredToken(),
       isAuthenticated: Boolean(auth?.user),
       isRestoring,
       toast,

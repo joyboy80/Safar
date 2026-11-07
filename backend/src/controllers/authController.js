@@ -105,10 +105,14 @@ export const uploadAvatar = asyncHandler(async (req, res) => {
 
 export const refresh = asyncHandler(async (req, res) => {
   const cookies = readSessionCookies(req);
-  const refreshToken = cookies.refreshToken || validateRefresh(req.body).refreshToken;
+  const tokenCandidate = cookies.refreshToken || req.body?.refreshToken || req.body?.refresh_token;
+  if (!tokenCandidate) {
+    clearSessionCookies(res);
+    throw new AppError(401, "A refresh token is required.", "SESSION_EXPIRED");
+  }
   let result;
   try {
-    result = await refreshUserSession(refreshToken);
+    result = await refreshUserSession(tokenCandidate);
   } catch (error) {
     clearSessionCookies(res);
     throw new AppError(401, "Your session expired. Please sign in again.", "SESSION_EXPIRED");

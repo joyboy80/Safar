@@ -1,5 +1,11 @@
 import { getDashboardForRole, ROLE_LABELS, ROLES } from "../utils/roles.js";
-import { apiRequest } from "./api.js";
+import {
+  apiRequest,
+  clearStoredTokens,
+  getStoredRefreshToken,
+  getStoredToken,
+  setStoredTokens,
+} from "./api.js";
 
 function normalizeRole(profile) {
   const value = String(profile?.role || profile?.userType || "").toLowerCase();
@@ -48,6 +54,12 @@ export async function login(credentials) {
   if (typeof window !== "undefined") {
     localStorage.removeItem("safar_logged_out");
   }
+  if (result?.session?.accessToken || result?.session?.token) {
+    setStoredTokens({
+      accessToken: result.session.accessToken || result.session.token,
+      refreshToken: result.session.refreshToken,
+    });
+  }
   return makeAuthState({ profile: result.user, session: result.session, remember });
 }
 
@@ -55,6 +67,12 @@ export async function register(input) {
   const result = await apiRequest("/auth/register", { method: "POST", body: input });
   if (typeof window !== "undefined") {
     localStorage.removeItem("safar_logged_out");
+  }
+  if (result?.session?.accessToken || result?.session?.token) {
+    setStoredTokens({
+      accessToken: result.session.accessToken || result.session.token,
+      refreshToken: result.session.refreshToken,
+    });
   }
   if (!result.session) return result;
   const authState = makeAuthState({ profile: result.user, session: result.session, remember: true });
@@ -82,7 +100,17 @@ export async function resetPassword(accessToken, password, confirmPassword) {
 }
 
 export async function refresh() {
-  const result = await apiRequest("/auth/refresh", { method: "POST" });
+  const currentRefreshToken = getStoredRefreshToken();
+  const result = await apiRequest("/auth/refresh", {
+    method: "POST",
+    body: { refreshToken: currentRefreshToken || "" },
+  });
+  if (result?.session?.accessToken || result?.session?.token) {
+    setStoredTokens({
+      accessToken: result.session.accessToken || result.session.token,
+      refreshToken: result.session.refreshToken || currentRefreshToken,
+    });
+  }
   return makeAuthState({ profile: result.user, session: result.session, remember: true });
 }
 
@@ -90,6 +118,8 @@ export async function restoreSession() {
   if (typeof window !== "undefined" && localStorage.getItem("safar_logged_out") === "true") {
     return null;
   }
+  const token = getStoredToken();
+  const refreshToken = getStoredRefreshToken();
   try {
     const result = await apiRequest("/auth/me", { silent: true });
     if (result?.user) {
@@ -97,24 +127,33 @@ export async function restoreSession() {
     }
   } catch (error) {
     if (error?.status === 401) {
+      if (refreshToken) {
+        try {
+          const refreshResult = await apiRequest("/auth/refresh", {
+            method: "POST",
+            body: { refreshToken },
+            silent: true,
+            retryOnUnauthorized: false,
+          });
+          if (refreshResult?.session?.accessToken || refreshResult?.session?.token) {
+            setStoredTokens({
+              accessToken: refreshResult.session.accessToken || refreshResult.session.token,
+              refreshToken: refreshResult.session.refreshToken || refreshToken,
+            });
+          }
+          if (refreshResult?.user) {
+            return { user: makeUser(refreshResult.user) };
+          }
+        } catch {
+          clearStoredTokens();
+          return null;
+        }
+      }
+      clearStoredTokens();
       if (error?.code === "SESSION_EXPIRED") {
         return { expired: true };
       }
-      try {
-        const refreshResult = await apiRequest("/auth/refresh", {
-          method: "POST",
-          silent: true,
-          retryOnUnauthorized: false,
-        });
-        if (refreshResult?.user) {
-          return { user: makeUser(refreshResult.user) };
-        }
-      } catch (refreshError) {
-        if (refreshError?.code === "SESSION_EXPIRED") {
-          return { expired: true };
-        }
-        return null;
-      }
+      return null;
     }
     return null;
   }
@@ -144,6 +183,7 @@ export async function logout() {
   if (typeof window !== "undefined") {
     localStorage.setItem("safar_logged_out", "true");
   }
+  clearStoredTokens();
   await apiRequest("/auth/logout", { method: "POST", silent: true });
 }
 

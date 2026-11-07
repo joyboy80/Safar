@@ -20,7 +20,7 @@ app.disable("x-powered-by");
 app.use(cors({
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Authorization", "Content-Type"],
+  allowedHeaders: ["Authorization", "Content-Type", "Accept"],
   origin(origin, callback) {
     if (isCorsOriginAllowed(origin, {
       allowedOrigins: env.clientOrigins,

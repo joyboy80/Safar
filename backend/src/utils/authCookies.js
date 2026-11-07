@@ -9,7 +9,7 @@ function cookieValue(value) {
 }
 
 function serializeCookie(name, value, { path, maxAge, expires } = {}) {
-  const isProduction = env.nodeEnv === "production";
+  const isProduction = env.nodeEnv === "production" || process.env.RENDER === "true";
   const parts = [
     `${name}=${cookieValue(value)}`,
     `Path=${path || "/api"}`,
@@ -79,6 +79,9 @@ export function clearSessionCookies(res, { allPaths = false } = {}) {
 export function publicSession(session) {
   if (!session) return null;
   return {
+    token: session.accessToken || session.access_token,
+    accessToken: session.accessToken || session.access_token,
+    refreshToken: session.refreshToken || session.refresh_token,
     expiresAt: session.expiresAt || session.expires_at,
     expiresIn: session.expiresIn || session.expires_in,
     tokenType: session.tokenType || session.token_type,

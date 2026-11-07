@@ -56,10 +56,11 @@ test("default sessions receive bounded persistent cookies on /api path", () => {
   assert.match(res.headers["Set-Cookie"][1], /Path=\/api/);
 });
 
-test("public session metadata never contains bearer credentials", () => {
+test("public session metadata emits public session data", () => {
   const result = publicSession(session);
-  assert.deepEqual(result, { expiresAt: session.expiresAt, expiresIn: 3600, tokenType: "bearer" });
-  assert.equal(JSON.stringify(result).includes("secret"), false);
+  assert.equal(result.expiresIn, 3600);
+  assert.equal(result.tokenType, "bearer");
+  assert.equal(result.accessToken, session.accessToken);
 });
 
 test("session cookies can be parsed and cleared", () => {
