@@ -455,6 +455,7 @@ export default function ScheduleManagementPage() {
       {/* Create / Edit Schedule Modal */}
       {form && (
         <AdminFormModal
+          open={Boolean(form)}
           isOpen={true}
           onClose={() => !saving && setForm(null)}
           title={form.id ? `Edit Schedule: ${form.id}` : "Create Bus Schedule"}

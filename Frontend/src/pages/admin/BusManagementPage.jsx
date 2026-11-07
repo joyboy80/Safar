@@ -409,6 +409,7 @@ export default function BusManagementPage() {
       {/* Add / Edit Bus Modal */}
       {form && (
         <AdminFormModal
+          open={Boolean(form)}
           isOpen={true}
           onClose={() => !saving && setForm(null)}
           title={form.id ? `Edit Bus: ${form.busName}` : "Add New Bus"}
