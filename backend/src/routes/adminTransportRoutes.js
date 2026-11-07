@@ -1,8 +1,8 @@
 import { Router } from "express";
 import {
   getAdminAssignments, getAdminBuses, getAdminDrivers, getAdminReservations, getAdminRoutes, getAdminSchedules, getAdminUsers,
-  getAlerts, getAnalytics, getMaintenance, getOverview, putAdminBus, putAdminDriver, putAdminReservation, putAdminRoute,
-  putAdminAssignment, putAdminSchedule, putAdminUser, putMaintenance, removeAdminAssignment, removeAdminBus, removeAdminRoute, removeAdminSchedule,
+  getAlerts, getAnalytics, getOverview, putAdminBus, putAdminDriver, putAdminReservation, putAdminRoute,
+  putAdminAssignment, putAdminSchedule, putAdminUser, removeAdminAssignment, removeAdminBus, removeAdminRoute, removeAdminSchedule,
   patchAdminBusStatus, postAdminSchedule, patchAdminScheduleCancel,
   getPredictionsOccupancy, getPredictionsInsights, getRecommendationsAllocations
 } from "../controllers/transportController.js";
@@ -48,8 +48,6 @@ router.get("/users", getAdminUsers);
 router.put("/users/:id", putAdminUser);
 router.get("/drivers", getAdminDrivers);
 router.put("/drivers/:id", putAdminDriver);
-router.get("/maintenance", getMaintenance);
-router.put("/maintenance/:id", putMaintenance);
 router.get("/alerts", getAlerts);
 router.get("/overview", getOverview);
 router.get("/analytics", getAnalytics);

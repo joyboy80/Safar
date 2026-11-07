@@ -10,7 +10,6 @@ import {
   RefreshCw,
   Search,
   Trash2,
-  Wrench,
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -32,7 +31,7 @@ import {
   updateBusStatus,
 } from "../../services/adminService";
 
-const OPERATIONAL_STATUSES = ["Online", "Running", "Stopped", "Maintenance"];
+const OPERATIONAL_STATUSES = ["Online", "Running", "Stopped"];
 
 const BUS_CATEGORIES = [
   "Student Bus",
@@ -98,8 +97,7 @@ export default function BusManagementPage() {
     const online = buses.filter((b) => (b.operationalStatus || b.status) === "Online").length;
     const running = buses.filter((b) => (b.operationalStatus || b.status) === "Running").length;
     const stopped = buses.filter((b) => (b.operationalStatus || b.status) === "Stopped").length;
-    const maintenance = buses.filter((b) => (b.operationalStatus || b.status) === "Maintenance").length;
-    return { total, online, running, stopped, maintenance };
+    return { total, online, running, stopped };
   }, [buses]);
 
   const visible = useMemo(() => {
@@ -228,7 +226,7 @@ export default function BusManagementPage() {
         />
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Fleet</p>
             <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{stats.total}</p>
@@ -253,13 +251,6 @@ export default function BusManagementPage() {
               <span className="h-2 w-2 rounded-full bg-amber-500" />
             </div>
             <p className="mt-1 text-2xl font-black text-amber-800 dark:text-amber-200">{stats.stopped}</p>
-          </div>
-          <div className="rounded-2xl border border-rose-200/80 bg-rose-50/50 p-4 shadow-sm dark:border-rose-900/50 dark:bg-rose-950/20">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-rose-700 dark:text-rose-400 uppercase tracking-wider">Maintenance</p>
-              <Wrench className="h-3.5 w-3.5 text-rose-500" />
-            </div>
-            <p className="mt-1 text-2xl font-black text-rose-800 dark:text-rose-200">{stats.maintenance}</p>
           </div>
         </div>
 
@@ -287,7 +278,6 @@ export default function BusManagementPage() {
               <option value="Online">Online ({stats.online})</option>
               <option value="Running">Running ({stats.running})</option>
               <option value="Stopped">Stopped ({stats.stopped})</option>
-              <option value="Maintenance">Maintenance ({stats.maintenance})</option>
             </select>
           </div>
         </div>

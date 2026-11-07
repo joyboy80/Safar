@@ -1,4 +1,4 @@
-import { AlertTriangle, Armchair, BusFront, CalendarDays, CircleAlert, ClipboardCheck, Siren, Users, Wrench } from "lucide-react";
+import { AlertTriangle, Armchair, BusFront, CalendarDays, CircleAlert, ClipboardCheck, Siren, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminStatusBadge from "../../components/admin/AdminStatusBadge";
@@ -27,7 +27,7 @@ export default function AdminDashboard() {
     [Users, "University Users", stats.totalUsers || 0, "Registered accounts", "/admin/users"],
     [Armchair, "Available Seats", stats.availableSeats || 0, "Across all buses"],
     [AlertTriangle, "Delayed Buses", stats.delayedBuses || 0, "Needs monitoring"],
-    [Wrench, "Maintenance", stats.maintenanceBuses || 0, "Under maintenance", "/admin/maintenance"],
+    [Siren, "Emergency Alerts", stats.emergencyReports || 0, "Urgent driver reports", "/admin/fleet"],
   ];
 
   return (
@@ -36,7 +36,7 @@ export default function AdminDashboard() {
         <PageHeader
           eyebrow="Transport Authority"
           title="Transportation control center"
-          description="Monitor university fleet operations, passenger demand, maintenance, and driver alerts from one workspace."
+          description="Monitor university fleet operations, passenger demand, live tracking, and driver alerts from one workspace."
         />
 
         <DashboardBusCarousel />

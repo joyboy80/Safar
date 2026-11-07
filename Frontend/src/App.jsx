@@ -11,7 +11,6 @@ import AIInsightsPage from "./pages/admin/AIInsightsPage";
 import BusManagementPage from "./pages/admin/BusManagementPage";
 import DriverManagementPage from "./pages/admin/DriverManagementPage";
 import FleetMonitoringPage from "./pages/admin/FleetMonitoringPage";
-import MaintenancePage from "./pages/admin/MaintenancePage";
 import ReservationManagementPage from "./pages/admin/ReservationManagementPage";
 import ScheduleManagementPage from "./pages/admin/ScheduleManagementPage";
 import UserManagementPage from "./pages/admin/UserManagementPage";
@@ -124,7 +123,6 @@ export default function App() {
           <Route path="/admin/reservations" element={<ReservationManagementPage />} />
           <Route path="/admin/users" element={<UserManagementPage />} />
           <Route path="/admin/drivers" element={<DriverManagementPage />} />
-          <Route path="/admin/maintenance" element={<MaintenancePage />} />
           <Route path="/admin/fleet" element={<FleetMonitoringPage />} />
           <Route path="/admin/analytics" element={<AnalyticsPage />} />
           <Route path="/admin/ai-insights" element={<AIInsightsPage />} />

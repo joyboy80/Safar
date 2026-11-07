@@ -16,7 +16,6 @@ import {
   Ticket,
   User,
   Users,
-  Wrench,
   Zap,
 } from "lucide-react";
 import { ROLES } from "./roles";
@@ -55,7 +54,6 @@ export const navigationByRole = {
     { label: "Reservations", path: "reservations", icon: ClipboardList },
     { label: "Users", path: "users", icon: Users },
     { label: "Drivers", path: "drivers", icon: ShieldCheck },
-    { label: "Maintenance", path: "maintenance", icon: Wrench },
     { label: "Analytics", path: "analytics", icon: ChartNoAxesCombined },
     { label: "AI Insights", path: "ai-insights", icon: Bot },
     { label: "Notifications", path: "notifications", icon: Bell },

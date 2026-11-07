@@ -104,14 +104,6 @@ export async function updateDriver(id, updates) {
   return (await apiRequest(`/admin/transport/drivers/${encodeURIComponent(id)}`, { method: "PUT", body: updates })).driver;
 }
 
-export async function getMaintenanceRecords() {
-  return (await apiRequest("/admin/transport/maintenance")).maintenance;
-}
-
-export async function updateMaintenance(id, updates) {
-  return (await apiRequest(`/admin/transport/maintenance/${encodeURIComponent(id)}`, { method: "PUT", body: updates })).maintenance;
-}
-
 export async function getOperationalAlerts() {
   return (await apiRequest("/admin/transport/alerts")).alerts;
 }

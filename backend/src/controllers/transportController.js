@@ -38,7 +38,6 @@ import {
   updateAdminUser,
   updateDriverLocation,
   updateDriverTrip,
-  updateMaintenance,
   verifyDriverTicket,
 } from "../services/transportService.js";
 import {
@@ -417,8 +416,6 @@ export const getAdminUsers = asyncHandler(async (_req, res) => sendSuccess(res, 
 export const putAdminUser = asyncHandler(async (req, res) => sendSuccess(res, { data: { user: await updateAdminUser(req.params.id, req.body) } }));
 export const getAdminDrivers = asyncHandler(async (_req, res) => sendSuccess(res, { data: { drivers: await adminDrivers() } }));
 export const putAdminDriver = asyncHandler(async (req, res) => sendSuccess(res, { data: { driver: await updateAdminDriver(req.params.id, req.body) } }));
-export const getMaintenance = asyncHandler(async (_req, res) => sendSuccess(res, { data: { maintenance: await maintenanceRecords() } }));
-export const putMaintenance = asyncHandler(async (req, res) => sendSuccess(res, { data: { maintenance: await updateMaintenance(req.params.id, req.body) } }));
 export const getAlerts = asyncHandler(async (_req, res) => sendSuccess(res, { data: { alerts: await operationalAlerts() } }));
 export const getOverview = asyncHandler(async (_req, res) => {
   const [fleetBuses, fleetSchedules, baseOverview] = await Promise.all([
