@@ -4,7 +4,7 @@ import {
   CheckCircle2,
   Clock,
   Edit2,
-  Image as ImageIcon,
+  MapPin,
   MoreVertical,
   Plus,
   RefreshCw,
@@ -28,6 +28,7 @@ import DashboardLayout from "../../layouts/DashboardLayout";
 import {
   deleteBus,
   getAdminBuses,
+  getAdminRoutes,
   saveBus,
   updateBusStatus,
 } from "../../services/adminService";
@@ -51,20 +52,21 @@ const statusStyles = {
   Maintenance: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
 };
 
-const blankBus = () => ({
+const blankBus = (defaultRoute = "") => ({
   id: "",
   busName: "",
   registrationNumber: "",
   category: "University Shuttle",
   capacity: 40,
-  description: "",
-  imageUrl: "",
+  route: defaultRoute || "",
+  routeId: "",
   operationalStatus: "Online",
 });
 
 export default function BusManagementPage() {
   const { setToast } = useAuth();
   const [buses, setBuses] = useState([]);
+  const [routes, setRoutes] = useState([]);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [form, setForm] = useState(null);
@@ -76,8 +78,12 @@ export default function BusManagementPage() {
   async function loadFleet() {
     setLoading(true);
     try {
-      const data = await getAdminBuses();
-      setBuses(data || []);
+      const [busesData, routesData] = await Promise.all([
+        getAdminBuses(),
+        getAdminRoutes().catch(() => []),
+      ]);
+      setBuses(busesData || []);
+      setRoutes(routesData || []);
       setError("");
     } catch (err) {
       setError(err.message || "Failed to load bus fleet.");
@@ -109,24 +115,29 @@ export default function BusManagementPage() {
         (b.name || b.busName || "").toLowerCase().includes(q) ||
         (b.number || b.registrationNumber || "").toLowerCase().includes(q) ||
         (b.category || "").toLowerCase().includes(q) ||
+        (b.route || b.routeName || "").toLowerCase().includes(q) ||
         (b.id || "").toLowerCase().includes(q)
       );
     });
   }, [buses, query, statusFilter]);
 
   function handleOpenCreate() {
-    setForm(blankBus());
+    const initialRoute = routes[0]?.name || routes[0]?.routeName || "CUET Campus - Station";
+    const initialRouteId = routes[0]?.id || "";
+    setForm({ ...blankBus(initialRoute), routeId: initialRouteId });
   }
 
   function handleOpenEdit(bus) {
+    const existingRoute = bus.route || bus.routeName || routes[0]?.name || routes[0]?.routeName || "";
+    const existingRouteId = bus.routeId || routes.find((r) => (r.name || r.routeName) === existingRoute)?.id || "";
     setForm({
       id: bus.id,
       busName: bus.name || bus.busName || "",
       registrationNumber: bus.number || bus.registrationNumber || "",
       category: bus.category || "University Shuttle",
       capacity: bus.capacity || 40,
-      description: bus.description || "",
-      imageUrl: bus.imageUrl || "",
+      route: existingRoute,
+      routeId: existingRouteId,
       operationalStatus: bus.operationalStatus || bus.status || "Online",
     });
   }
@@ -157,6 +168,10 @@ export default function BusManagementPage() {
       setToast({ type: "error", message: "Capacity must be between 1 and 120." });
       return;
     }
+    if (!form.route) {
+      setToast({ type: "error", message: "Please select an assigned route for the bus." });
+      return;
+    }
 
     setSaving(true);
     try {
@@ -166,8 +181,8 @@ export default function BusManagementPage() {
         registrationNumber: form.registrationNumber.trim(),
         category: form.category,
         capacity: Number(form.capacity),
-        description: form.description.trim(),
-        imageUrl: form.imageUrl.trim(),
+        route: form.route,
+        routeId: form.routeId || undefined,
         operationalStatus: form.operationalStatus,
       });
 
@@ -350,25 +365,28 @@ export default function BusManagementPage() {
                       </p>
                     </div>
 
-                    {/* Capacity & Description */}
-                    <div className="mt-4 flex items-center gap-4 text-xs text-slate-600 dark:text-slate-400">
+                    {/* Assigned Route Badge */}
+                    <div className="mt-3.5 flex items-center gap-2.5 rounded-xl border border-teal-100 bg-teal-50/60 p-2.5 dark:border-teal-900/40 dark:bg-teal-950/20">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-500/10 text-teal-600 dark:bg-teal-400/20 dark:text-teal-400">
+                        <MapPin className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700/70 dark:text-teal-400/70">
+                          Assigned Route
+                        </p>
+                        <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-200" title={bus.route || bus.routeName || "Not Assigned"}>
+                          {bus.route || bus.routeName || "Not Assigned"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Capacity */}
+                    <div className="mt-3 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
                       <div className="flex items-center gap-1.5 font-medium">
                         <span className="text-slate-400">Capacity:</span>
                         <span className="font-bold text-slate-800 dark:text-slate-200">{bus.capacity} seats</span>
                       </div>
-                      {bus.imageUrl && (
-                        <div className="flex items-center gap-1 text-teal-600 dark:text-teal-400 font-medium">
-                          <ImageIcon className="h-3.5 w-3.5" />
-                          <span>Photo</span>
-                        </div>
-                      )}
                     </div>
-
-                    {bus.description && (
-                      <p className="mt-2.5 text-xs text-slate-500 line-clamp-2 dark:text-slate-400">
-                        {bus.description}
-                      </p>
-                    )}
                   </div>
 
                   {/* Actions footer */}
@@ -511,28 +529,36 @@ export default function BusManagementPage() {
 
             <div>
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Image URL (Optional)
+                Assigned Route <span className="text-rose-500">*</span>
               </label>
-              <input
-                type="url"
-                value={form.imageUrl}
-                onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                placeholder="https://images.unsplash.com/..."
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 focus:border-teal-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Description (Optional)
-              </label>
-              <textarea
-                rows={3}
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Air-conditioned campus express coach with WiFi..."
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 focus:border-teal-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
+              <select
+                value={form.route}
+                onChange={(e) => {
+                  const selected = routes.find(
+                    (r) => (r.name || r.routeName) === e.target.value || r.id === e.target.value
+                  );
+                  setForm({
+                    ...form,
+                    route: e.target.value,
+                    routeId: selected?.id || "",
+                  });
+                }}
+                required
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="" disabled>
+                  Select an existing route from database...
+                </option>
+                {routes.map((r) => {
+                  const rName = r.name || r.routeName;
+                  const rDir = r.direction ? ` (${r.direction})` : "";
+                  return (
+                    <option key={r.id || rName} value={rName}>
+                      {rName}{rDir}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-3">

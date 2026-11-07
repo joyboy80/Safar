@@ -106,6 +106,10 @@ export async function listAllBuses() {
       : b.status === "Stopped" ? BUS_STATUSES.STOPPED
       : BUS_STATUSES.ONLINE;
 
+    const route = b.route || busMeta.route || "Not Assigned";
+    const routeId = busMeta.routeId || b.route_id || null;
+    const stops = b.stops || busMeta.stops || [];
+
     return {
       id: b.id,
       busId: b.id,
@@ -119,8 +123,10 @@ export async function listAllBuses() {
       imageUrl: busMeta.imageUrl || b.image_url || null,
       operationalStatus,
       status: operationalStatus,
-      route: b.route,
-      routeId: b.route_id,
+      route,
+      routeName: route,
+      routeId,
+      stops,
       departureTime: b.departure_time,
       assignedDriverName: b.assigned_driver_name,
       createdAt: b.created_at,
@@ -134,6 +140,9 @@ export async function saveBusRecord(input) {
   const registrationNumber = String(input.registrationNumber || input.number || "").trim();
   const category = String(input.category || "Student Bus").trim();
   const capacity = Number.parseInt(input.capacity, 10);
+  const route = String(input.route || input.routeName || "CUET Campus - Station").trim();
+  const routeId = input.routeId || null;
+  const stops = Array.isArray(input.stops) && input.stops.length > 0 ? input.stops : ["CUET Campus", "Station"];
   const description = String(input.description || "").trim();
   const imageUrl = input.imageUrl || null;
   const operationalStatus = [BUS_STATUSES.ONLINE, BUS_STATUSES.RUNNING, BUS_STATUSES.STOPPED, BUS_STATUSES.MAINTENANCE]
@@ -176,10 +185,10 @@ export async function saveBusRecord(input) {
     number: registrationNumber,
     category: dbCategory,
     capacity,
-    route: "Campus Route",
-    stops: ["CUET Campus", "Station"],
-    departure_time: "07:30 AM",
-    arrival_time: "08:30 AM",
+    route,
+    stops,
+    departure_time: input.departureTime || "07:30 AM",
+    arrival_time: input.arrivalTime || "08:30 AM",
     status: operationalStatus,
     updated_at: new Date().toISOString(),
   };
@@ -194,10 +203,12 @@ export async function saveBusRecord(input) {
     throw new AppError(500, `Failed to save bus: ${error.message}`, "BUS_SAVE_FAILED");
   }
 
-  // Persist additional metadata (exact user category, description, image)
+  // Persist additional metadata
   const meta = await readBusesMetaData();
   meta[busId] = {
     category,
+    route,
+    routeId,
     description,
     imageUrl,
     registrationNumber,
@@ -215,6 +226,10 @@ export async function saveBusRecord(input) {
     number: data.number,
     category,
     capacity: data.capacity,
+    route,
+    routeName: route,
+    routeId,
+    stops,
     description,
     imageUrl,
     operationalStatus,

@@ -58,6 +58,7 @@ import {
 } from "../services/fleetScheduleService.js";
 import { getOccupancyPredictions, getSmartTransportationInsights } from "../services/predictionService.js";
 import { getBusAllocationRecommendations } from "../services/recommendationService.js";
+import { getSupabaseAdmin } from "../config/supabase.js";
 import AppError from "../utils/AppError.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { sendSuccess } from "../utils/response.js";
@@ -347,7 +348,30 @@ export const removeAdminBus = asyncHandler(async (req, res) => {
   await removeBusRecord(req.params.id);
   return sendSuccess(res, { message: "Bus deleted." });
 });
-export const getAdminRoutes = asyncHandler(async (_req, res) => sendSuccess(res, { data: { routes: await listRoutes() } }));
+export const getAdminRoutes = asyncHandler(async (_req, res) => {
+  const admin = getSupabaseAdmin();
+  const { data: allDbRoutes } = await admin.from("transport_routes").select("*").order("name");
+  let combined = [];
+  if (allDbRoutes && allDbRoutes.length > 0) {
+    const seen = new Set();
+    combined = allDbRoutes
+      .filter((r) => {
+        if (!r.name || seen.has(r.name.trim().toLowerCase())) return false;
+        seen.add(r.name.trim().toLowerCase());
+        return true;
+      })
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        routeName: r.name,
+        direction: r.direction || "CUET ↔ Station",
+        stops: r.stops || [],
+      }));
+  } else {
+    combined = await listRoutes();
+  }
+  return sendSuccess(res, { data: { routes: combined } });
+});
 export const putAdminRoute = asyncHandler(async (req, res) => sendSuccess(res, { data: { route: await saveAdminRoute(req.body) } }));
 export const removeAdminRoute = asyncHandler(async (req, res) => { await deleteAdminRoute(req.params.id); return sendSuccess(res, { message: "Route deleted." }); });
 export const getAdminSchedules = asyncHandler(async (req, res) => {
