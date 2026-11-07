@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "id": "SCH-68974222",
+    "scheduleId": "SCH-68974222",
+    "busId": "BUS-37624300",
+    "busName": "Padma",
+    "registrationNumber": "Cuet-1",
+    "busCategory": "Student Bus",
+    "capacity": 40,
+    "driverId": "035de74d-9b15-48c3-a7f2-4ab1fa9ed75d",
+    "driverName": "Md Helal",
+    "routeId": "CUET_STATION_DIRECT",
+    "routeName": "Route 1 — Direct via Flyover",
+    "routeDirection": "CUET → Station",
+    "departureTime": "05:45 AM",
+    "scheduleDate": "2026-11-08",
+    "scheduleStatus": "Scheduled",
+    "startedAt": null,
+    "completedAt": null,
+    "createdBy": "74dd5928-88a2-4000-a011-2c67025e46ad",
+    "createdAt": "2026-11-07T19:31:22.090Z",
+    "updatedAt": "2026-11-07T19:31:22.090Z"
+  }
+]

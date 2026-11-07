@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "../config/supabase.js";
 import AppError from "../utils/AppError.js";
-import { PREDEFINED_ROUTES } from "./transportService.js";
+import { PREDEFINED_ROUTES, getAllowedCategoriesForUser } from "./transportService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -780,32 +780,40 @@ export async function getUserDashboardSchedules(user, date = todayDate()) {
   const all = await listAllSchedules({ date });
 
   // Exclude cancelled schedules from passenger public list
-  return all
-    .filter((s) => s.scheduleStatus !== SCHEDULE_STATUSES.CANCELLED)
-    .map((s) => ({
-      id: s.id,
-      scheduleId: s.id,
-      busId: s.busId,
-      name: s.busName,
-      busName: s.busName,
-      busNumber: s.registrationNumber,
-      registrationNumber: s.registrationNumber,
-      category: s.busCategory,
-      busCategory: s.busCategory,
-      capacity: s.capacity,
-      availableSeats: s.capacity,
-      route: s.routeName,
-      routeName: s.routeName,
-      routeDirection: s.routeDirection,
-      departureTime: s.departureTime,
-      arrivalTime: s.departureTime,
-      scheduleDate: s.scheduleDate,
-      driverName: s.driverName,
-      busOperationalStatus: s.currentBusStatus,
-      scheduleStatus: s.scheduleStatus,
-      status: s.scheduleStatus === SCHEDULE_STATUSES.RUNNING ? "In Progress"
-        : s.scheduleStatus === SCHEDULE_STATUSES.COMPLETED ? "Completed"
-        : "Scheduled",
-    }));
+  const activeSchedules = all.filter((s) => s.scheduleStatus !== SCHEDULE_STATUSES.CANCELLED);
+
+  const allowedCategories = getAllowedCategoriesForUser(user);
+  const eligibleSchedules = activeSchedules.filter((s) => {
+    if (!allowedCategories.length) return true;
+    return allowedCategories.includes(s.busCategory);
+  });
+
+  return eligibleSchedules.map((s) => ({
+    id: s.busId,
+    busId: s.busId,
+    scheduleId: s.id,
+    tripId: s.id,
+    name: s.busName,
+    busName: s.busName,
+    busNumber: s.registrationNumber,
+    registrationNumber: s.registrationNumber,
+    category: s.busCategory,
+    busCategory: s.busCategory,
+    type: s.busCategory,
+    capacity: s.capacity,
+    availableSeats: s.capacity,
+    route: s.routeName,
+    routeName: s.routeName,
+    routeDirection: s.routeDirection,
+    departureTime: s.departureTime,
+    arrivalTime: s.departureTime,
+    scheduleDate: s.scheduleDate,
+    driverName: s.driverName,
+    busOperationalStatus: s.currentBusStatus,
+    scheduleStatus: s.scheduleStatus,
+    status: s.scheduleStatus === SCHEDULE_STATUSES.RUNNING ? "In Progress"
+      : s.scheduleStatus === SCHEDULE_STATUSES.COMPLETED ? "Completed"
+      : "Scheduled",
+  }));
 }
 

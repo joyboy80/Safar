@@ -33,44 +33,102 @@ export default function ReservationFlowPage({ role }) {
   const [error, setError] = useState("");
   const [myReservations, setMyReservations] = useState([]);
 
-  const selectedBus = buses.find((bus) => bus.id === busId);
-  const trips = useMemo(() => allTrips.filter((trip) => trip.busId === busId), [allTrips, busId]);
+  // Normalize buses list so each distinct bus appears once
+  const uniqueBuses = useMemo(() => {
+    const map = new Map();
+    (buses || []).forEach((b) => {
+      const key = b.busId || b.id;
+      if (!map.has(key)) {
+        map.set(key, {
+          ...b,
+          id: key,
+          busId: key,
+          name: b.name || b.busName,
+          type: b.type || b.category || b.busCategory,
+          capacity: b.capacity || 40,
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [buses]);
+
+  const selectedBus = uniqueBuses.find((b) => b.id === busId || b.busId === busId) || uniqueBuses[0];
+  const currentBusId = selectedBus?.id || selectedBus?.busId || busId;
+  const trips = useMemo(() => {
+    return allTrips.filter((trip) => trip.busId === currentBusId || trip.busId === busId || trip.id === busId);
+  }, [allTrips, currentBusId, busId]);
+
   const selectedTrip = trips.find((trip) => trip.id === tripId) || trips[0];
   const unavailableSeats = useMemo(
-    () => getUnavailableSeatsForCapacity(selectedBus?.capacity || 44),
+    () => getUnavailableSeatsForCapacity(selectedBus?.capacity || 40),
     [selectedBus?.capacity]
   );
 
   useEffect(() => {
-    Promise.all([getBusesByRole(role, date), getSchedules(date), getReservations(user.id)]).then(([busData, tripData, reservationsData]) => {
-      setBuses(busData);
-      setAllTrips(tripData.filter((trip) => busData.some((bus) => bus.id === trip.busId)));
-      setMyReservations(reservationsData.filter(r => r.status !== "Cancelled"));
-      setBusId((current) => busData.some((bus) => bus.id === current) ? current : busData[0]?.id || "");
-      setTripId("");
-    }).catch((requestError) => setError(requestError.message)).finally(() => setLoading(false));
-  }, [role]);
+    let active = true;
+    setLoading(true);
+    Promise.all([
+      getBusesByRole(role, date),
+      getSchedules(date),
+      getReservations(user.id),
+    ]).then(([busData, tripData, reservationsData]) => {
+      if (!active) return;
+      const rawBuses = busData || [];
+      const validTrips = tripData || [];
+
+      setBuses(rawBuses);
+      setAllTrips(validTrips);
+      setMyReservations((reservationsData || []).filter((r) => r.status !== "Cancelled"));
+
+      // Set initial busId and tripId
+      const targetParam = searchParams.get("busId");
+      if (targetParam) {
+        const foundTrip = validTrips.find((t) => t.id === targetParam || t.busId === targetParam);
+        if (foundTrip) {
+          setBusId(foundTrip.busId);
+          setTripId(foundTrip.id);
+        } else {
+          setBusId(targetParam);
+        }
+      } else if (rawBuses[0]) {
+        const firstId = rawBuses[0].busId || rawBuses[0].id;
+        setBusId(firstId);
+      }
+
+      setError("");
+    }).catch((requestError) => {
+      if (active) setError(requestError.message);
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+
+    return () => { active = false; };
+  }, [role, date, user.id]);
 
   useEffect(() => {
-    if (trips[0] && !trips.some((trip) => trip.id === tripId)) {
-      setTripId(trips[0].id);
+    if (selectedTrip?.id && tripId !== selectedTrip.id) {
+      setTripId(selectedTrip.id);
     }
-  }, [tripId, trips]);
+  }, [selectedTrip?.id, tripId]);
 
   useEffect(() => {
-    if (!selectedTrip || !date) return;
+    const activeTripId = selectedTrip?.id;
+    if (!activeTripId || !date) return;
 
-    getReservedSeats(selectedTrip.id, date).then((seats) => {
-      setReservedSeats(seats);
-      if (seats.includes(selectedSeat) || unavailableSeats.includes(selectedSeat)) {
+    getReservedSeats(activeTripId, date).then((seats) => {
+      const list = Array.isArray(seats) ? seats : [];
+      setReservedSeats(list);
+      if (list.includes(selectedSeat) || unavailableSeats.includes(selectedSeat)) {
         setSelectedSeat("");
       }
+    }).catch(() => {
+      setReservedSeats([]);
     });
-  }, [date, selectedSeat, selectedTrip]);
+  }, [date, selectedTrip?.id, unavailableSeats]);
 
   if (loading) return <DashboardLayout><Loading label="Loading available trips" /></DashboardLayout>;
 
-  if (error && !buses.length) return <DashboardLayout><ErrorState title="Reservation service unavailable" message={error} /></DashboardLayout>;
+  if (error && !uniqueBuses.length) return <DashboardLayout><ErrorState title="Reservation service unavailable" message={error} /></DashboardLayout>;
 
   if (!selectedBus) return <DashboardLayout><EmptyState title="No scheduled buses for this date" message="Choose another date or check back after Transport Admin publishes an eligible schedule." /></DashboardLayout>;
 
@@ -79,7 +137,8 @@ export default function ReservationFlowPage({ role }) {
   async function handleConfirm() {
     setError("");
 
-    if (!selectedTrip || !selectedSeat) {
+    const targetTrip = selectedTrip || trips[0];
+    if (!targetTrip || !selectedSeat) {
       setError("Select a trip and an available seat before confirming.");
       return;
     }
@@ -89,7 +148,7 @@ export default function ReservationFlowPage({ role }) {
       const nextResult = await createReservation({
         user,
         role,
-        tripId: selectedTrip.id,
+        tripId: targetTrip.id,
         date,
         seatNumber: selectedSeat,
       });
@@ -154,13 +213,13 @@ export default function ReservationFlowPage({ role }) {
           <div className="grid gap-3 md:grid-cols-3">
             <Select
               label="Select Bus"
-              value={busId}
+              value={currentBusId}
               onChange={(event) => {
                 setBusId(event.target.value);
                 setSelectedSeat("");
               }}
             >
-              {buses.map((bus) => (
+              {uniqueBuses.map((bus) => (
                 <option key={bus.id} value={bus.id}>{bus.name} / {bus.type}</option>
               ))}
             </Select>

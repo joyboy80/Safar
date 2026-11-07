@@ -306,21 +306,46 @@ async function reservationCounts(date = serviceDate()) {
   return (data || []).reduce((counts, item) => counts.set(item.bus_id, (counts.get(item.bus_id) || 0) + 1), new Map());
 }
 
+export function getAllowedCategoriesForUser(user) {
+  if (!user) return [];
+  if (user.userType === "STUDENT") {
+    return user.gender === "FEMALE"
+      ? ["Student Bus", "Female Student Bus", "University Shuttle", "AC", "Non-AC"]
+      : ["Student Bus", "University Shuttle", "AC", "Non-AC"];
+  }
+  if (user.userType === "TEACHER") {
+    return ["Teacher Bus", "University Shuttle", "AC", "Non-AC"];
+  }
+  if (user.userType === "STAFF") {
+    return ["Staff Bus", "University Shuttle", "AC", "Non-AC"];
+  }
+  return ["Student Bus", "Female Student Bus", "Teacher Bus", "Staff Bus", "University Shuttle", "AC", "Non-AC"];
+}
+
 export async function listBuses(user, busId, date) {
   const targetDate = scheduleDate(date);
-  const groups = eligibleGroups(user);
-  if (!groups.length) return busId ? null : [];
-  let query = getSupabaseAdmin().from("transport_assignments").select("*, buses(*), transport_trips(*)")
-    .eq("service_date", targetDate).eq("status", "ACTIVE").in("passenger_group", groups).order("shift");
-  if (busId) query = query.eq("bus_id", busId);
-  const [{ data, error }, counts] = await Promise.all([query, reservationCounts(targetDate)]);
-  if (error) throw transportError(error, "read buses");
-  const buses = (data || []).map((assignment) => {
-    const bus = assignment.buses;
-    const outbound = (assignment.transport_trips || []).find((trip) => trip.direction === "OUTBOUND") || assignment.transport_trips?.[0];
-    return { ...serializeBus(bus, counts.get(bus.id) || 0), route: outbound?.route || bus.route, departureTime: outbound?.departure_time || bus.departure_time, assignmentId: assignment.id, shift: assignment.shift, passengerGroup: assignment.passenger_group, passengerGroupLabel: GROUP_LABELS[assignment.passenger_group] };
+  const admin = getSupabaseAdmin();
+  const allowedCategories = getAllowedCategoriesForUser(user);
+  const counts = await reservationCounts(targetDate);
+
+  if (busId) {
+    const { data: bus, error: busErr } = await admin.from("buses").select("*").eq("id", busId).maybeSingle();
+    if (!busErr && bus) {
+      if (!allowedCategories.length || allowedCategories.includes(bus.category)) {
+        return serializeBus(bus, counts.get(bus.id) || 0);
+      }
+    }
+  }
+
+  const { data: allBuses, error: busError } = await admin.from("buses").select("*").order("name");
+  if (busError) throw transportError(busError, "read buses");
+
+  const filteredBuses = (allBuses || []).filter((b) => {
+    if (allowedCategories.length && !allowedCategories.includes(b.category)) return false;
+    return true;
   });
-  return busId ? buses[0] || null : buses;
+
+  return busId ? filteredBuses.find((b) => b.id === busId) || null : filteredBuses.map((b) => serializeBus(b, counts.get(b.id) || 0));
 }
 
 export async function listRoutes() {
@@ -369,12 +394,25 @@ export async function listRoutes() {
 
 export async function listTrips(user, date) {
   const targetDate = scheduleDate(date);
-  const groups = eligibleGroups(user);
-  if (!groups.length) return [];
-  const { data, error } = await getSupabaseAdmin().from("transport_trips").select("*, buses(*), transport_assignments!inner(status)")
-    .eq("service_date", targetDate).eq("transport_assignments.status", "ACTIVE").in("passenger_group", groups).order("departure_time");
+  const admin = getSupabaseAdmin();
+  const { data, error } = await admin
+    .from("transport_trips")
+    .select("*, buses(*)")
+    .eq("service_date", targetDate)
+    .order("departure_time");
+
   if (error) throw transportError(error, "read trips");
-  return (data || []).map(serializeTrip);
+
+  const allowedCategories = getAllowedCategoriesForUser(user);
+  const filtered = (data || []).filter((row) => {
+    const bus = Array.isArray(row.buses) ? row.buses[0] : row.buses;
+    if (!bus) return false;
+    if (row.status === "Cancelled" || row.operational_status === "CANCELLED") return false;
+    if (allowedCategories.length && !allowedCategories.includes(bus.category)) return false;
+    return true;
+  });
+
+  return filtered.map(serializeTrip);
 }
 
 export async function listReservations(profileId, { all = false, date, busId, busName, routeId, route, role, status, boardingStatus } = {}) {
