@@ -37,6 +37,7 @@ const NON_REFRESHABLE_AUTH_PATHS = [
 
 export async function apiRequest(path, { method = "GET", body, token, signal, retryOnUnauthorized = true, silent = false } = {}) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   let response;
   try {
     response = await fetch(`${API_BASE_URL}${normalizedPath}`, {
@@ -45,10 +46,10 @@ export async function apiRequest(path, { method = "GET", body, token, signal, re
       credentials: "include",
       headers: {
         Accept: "application/json",
-        ...(body ? { "Content-Type": "application/json" } : {}),
+        ...(body && !isFormData ? { "Content-Type": "application/json" } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      ...(body ? { body: JSON.stringify(body) } : {}),
+      ...(body ? { body: isFormData ? body : JSON.stringify(body) } : {}),
     });
   } catch (cause) {
     if (cause?.code === "API_ERROR" || cause?.status) {

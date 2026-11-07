@@ -10,9 +10,11 @@ import {
   changePassword,
   sendOtp,
   updateProfile,
+  uploadAvatar,
   verifyOtp,
 } from "../controllers/authController.js";
 import authMiddleware from "../middleware/authMiddleware.js";
+import { uploadAvatarMiddleware } from "../middleware/uploadMiddleware.js";
 
 const router = Router();
 
@@ -28,5 +30,6 @@ router.put("/password", authMiddleware, changePassword);
 router.post("/logout", logout);
 router.get("/me", authMiddleware, me);
 router.put("/profile", authMiddleware, updateProfile);
+router.post("/profile/avatar", authMiddleware, uploadAvatarMiddleware, uploadAvatar);
 
 export default router;

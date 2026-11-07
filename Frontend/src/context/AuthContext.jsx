@@ -58,6 +58,15 @@ export function AuthProvider({ children }) {
       isRestoring,
       toast,
       setToast,
+      updateUser(nextUserData) {
+        setAuth((prev) => {
+          if (!prev?.user) return prev;
+          return {
+            ...prev,
+            user: { ...prev.user, ...nextUserData },
+          };
+        });
+      },
       async login(credentials) {
         const nextAuth = await authService.login(credentials);
         setAuth(nextAuth);

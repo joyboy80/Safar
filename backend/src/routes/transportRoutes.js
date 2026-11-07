@@ -4,6 +4,7 @@ import {
   removeReservation, reservations, routes, seats, serviceStatus, ticket, tickets, tracking, trackingBus, trips,
   downloadTicket, downloadInvoice, shareTicket,
 } from "../controllers/transportController.js";
+import { getFeaturedPhotos } from "../controllers/busPhotoController.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 import requireRole from "../middleware/requireRole.js";
 import { ROLES } from "../validators/authValidator.js";
@@ -17,6 +18,7 @@ router.get("/trips", trips);
 router.get("/tracking", tracking);
 router.get("/tracking/:id", trackingBus);
 router.get("/status", serviceStatus);
+router.get("/featured-photos", getFeaturedPhotos);
 router.get("/notifications", notifications);
 router.patch("/notifications/read-all", readAllNotifications);
 router.patch("/notifications/:id/read", readNotification);

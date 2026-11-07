@@ -130,6 +130,16 @@ export async function updateProfile(updates) {
   return apiRequest("/auth/profile", { method: "PUT", body: updates });
 }
 
+export async function uploadAvatar(file) {
+  const formData = new FormData();
+  formData.append("avatar", file);
+  const result = await apiRequest("/profile/avatar", {
+    method: "POST",
+    body: formData,
+  });
+  return result?.user ? makeUser(result.user) : result;
+}
+
 export async function logout() {
   if (typeof window !== "undefined") {
     localStorage.setItem("safar_logged_out", "true");

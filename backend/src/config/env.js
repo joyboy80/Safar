@@ -32,6 +32,9 @@ export const env = {
   otpResendCooldownSeconds: integer(process.env.OTP_RESEND_COOLDOWN_SECONDS, 60),
   otpMaxAttempts: integer(process.env.OTP_MAX_ATTEMPTS, 5),
   otpMaxRequestsPerHour: integer(process.env.OTP_MAX_REQUESTS_PER_HOUR, 5),
+  cloudinaryCloudName: String(process.env.CLOUDINARY_CLOUD_NAME || "").trim().replace(/^["']|["']$/g, ""),
+  cloudinaryApiKey: String(process.env.CLOUDINARY_API_KEY || "").trim().replace(/^["']|["']$/g, ""),
+  cloudinaryApiSecret: String(process.env.CLOUDINARY_API_SECRET || "").trim().replace(/^["']|["']$/g, ""),
 };
 
 export function validateEnvironment({ requireSmtp = env.nodeEnv === "production" } = {}) {

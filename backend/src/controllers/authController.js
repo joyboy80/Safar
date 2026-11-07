@@ -13,6 +13,7 @@ import AppError from "../utils/AppError.js";
 import { sendSuccess } from "../utils/response.js";
 import { readBearerToken } from "../middleware/authMiddleware.js";
 import { clearSessionCookies, publicSession, readSessionCookies, setSessionCookies } from "../utils/authCookies.js";
+import { uploadImageBuffer } from "../services/cloudinaryService.js";
 import {
   validateForgotPassword,
   validateLogin,
@@ -76,6 +77,30 @@ export const getProfile = me;
 export const updateProfile = asyncHandler(async (req, res) => {
   const user = await updateCurrentProfile(req.user.authUserId, validateProfileUpdate(req.body));
   return sendSuccess(res, { data: { user }, message: "Profile updated." });
+});
+
+export const uploadAvatar = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new AppError(400, "Please select an image file to upload as your profile picture.", "NO_FILE_UPLOADED");
+  }
+
+  const result = await uploadImageBuffer(req.file.buffer, {
+    folder: "safar/avatars",
+    publicId: `avatar_${req.user.authUserId}`,
+    transformation: [
+      { width: 400, height: 400, crop: "fill", gravity: "face" },
+      { quality: "auto", fetch_format: "auto" },
+    ],
+  });
+
+  const updatedUser = await updateCurrentProfile(req.user.authUserId, {
+    profile_image: result.secure_url,
+  });
+
+  return sendSuccess(res, {
+    data: { user: updatedUser },
+    message: "Profile picture uploaded successfully.",
+  });
 });
 
 export const refresh = asyncHandler(async (req, res) => {

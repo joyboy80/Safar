@@ -2,6 +2,7 @@ import { Eye, MapPin, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import AdminFormModal from "../../components/admin/AdminFormModal";
 import AdminStatusBadge from "../../components/admin/AdminStatusBadge";
+import FeaturedBusPhotosManager from "../../components/admin/FeaturedBusPhotosManager";
 import ResponsiveDataList from "../../components/admin/ResponsiveDataList";
 import Button from "../../components/common/Button";
 import EmptyState from "../../components/common/EmptyState";

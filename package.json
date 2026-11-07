@@ -1,0 +1,19 @@
+{
+  "name": "safar-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Safar Campus Transportation Platform (Backend + Frontend)",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev-local.js",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix Frontend run dev",
+    "start": "node backend/src/server.js",
+    "start:backend": "npm --prefix backend start",
+    "build": "npm --prefix Frontend run build",
+    "build:frontend": "npm --prefix Frontend run build",
+    "install:all": "npm --prefix backend install && npm --prefix Frontend install",
+    "test": "npm --prefix backend test"
+  }
+}
+

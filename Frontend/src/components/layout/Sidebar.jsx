@@ -8,9 +8,30 @@ export default function Sidebar({ user, onLogout }) {
   return (
     <aside className="hidden h-screen w-72 shrink-0 border-r border-white/20 bg-white/70 backdrop-blur-3xl px-4 py-5 lg:sticky lg:top-0 lg:flex lg:flex-col dark:bg-slate-900/70 dark:border-slate-800/50">
       <div className="px-2"><Logo /></div>
-      <div className="mt-6 rounded-2xl bg-white/50 p-4 shadow-sm ring-1 ring-slate-200/50 backdrop-blur-md dark:bg-slate-800/50 dark:ring-slate-700/50">
-        <p className="text-xs font-bold uppercase tracking-wider text-safar-teal">{user.roleLabel}</p>
-        <p className="mt-1 truncate text-sm font-bold text-safar-ink">{user.name}</p>
+      <div className="mt-6 flex items-center gap-3 rounded-2xl bg-white/50 p-3 shadow-sm ring-1 ring-slate-200/50 backdrop-blur-md dark:bg-slate-800/50 dark:ring-slate-700/50">
+        {user?.profileImage ? (
+          <img
+            src={user.profileImage}
+            alt={user.name}
+            className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-safar-teal/30 shadow-sm"
+          />
+        ) : (
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-safar-mint text-sm font-bold text-safar-teal">
+            {user?.name
+              ? user.name
+                  .split(" ")
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((p) => p[0])
+                  .join("")
+                  .toUpperCase()
+              : "JU"}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold uppercase tracking-wider text-safar-teal">{user.roleLabel}</p>
+          <p className="truncate text-sm font-bold text-safar-ink dark:text-white">{user.name}</p>
+        </div>
       </div>
       <nav className="mt-8 flex-1 space-y-1 overflow-y-auto pr-1">
         {items.map((item) => (

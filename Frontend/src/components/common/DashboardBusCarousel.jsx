@@ -1,33 +1,90 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import img1 from "../../assets/images/jamuna.jpg";
 import img2 from "../../assets/images/jamuna student.jpg";
 import img3 from "../../assets/images/jamuna full body.jpg";
 import img4 from "../../assets/images/jamuna campus.jpg";
+import { getFeaturedBusPhotos } from "../../services/busPhotoService";
 
-const IMAGES = [
-  { src: img1, alt: "Jamuna bus of CUET" },
-  { src: img2, alt: "CUET students near Jamuna bus" },
-  { src: img3, alt: "Full body view of Jamuna bus" },
-  { src: img4, alt: "Jamuna bus in the campus" },
+const DEFAULT_IMAGES = [
+  {
+    id: "def-1",
+    src: img1,
+    alt: "Jamuna bus of CUET",
+    title: "Safar Transportation",
+    caption: "Safe, intelligent, and convenient mobility powered by AI.",
+  },
+  {
+    id: "def-2",
+    src: img2,
+    alt: "CUET students near Jamuna bus",
+    title: "Student Campus Commute",
+    caption: "Connecting students across campus departments and city terminals reliably.",
+  },
+  {
+    id: "def-3",
+    src: img3,
+    alt: "Full body view of Jamuna bus",
+    title: "CUET University Fleet",
+    caption: "Modernized bus transportation designed for punctuality and passenger comfort.",
+  },
+  {
+    id: "def-4",
+    src: img4,
+    alt: "Jamuna bus in the campus",
+    title: "Eco Campus Safar",
+    caption: "Real-time fleet tracking and dynamic scheduling across all routes.",
+  },
 ];
 
 const AUTOPLAY_INTERVAL_MS = 5000;
 const SWIPE_THRESHOLD = 50;
 
-export default function DashboardBusCarousel() {
+export default function DashboardBusCarousel({ onOpenAdminModal }) {
+  const [slides, setSlides] = useState(DEFAULT_IMAGES);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
-  
-  const goToNext = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % IMAGES.length);
+
+  const loadPhotos = useCallback(async () => {
+    try {
+      const customPhotos = await getFeaturedBusPhotos();
+      if (Array.isArray(customPhotos) && customPhotos.length > 0) {
+        const formatted = customPhotos.map((p) => ({
+          id: p.id,
+          src: p.image_url,
+          alt: p.title || "Featured CUET bus",
+          title: p.title || "Featured Bus",
+          caption: p.caption || "Special fleet showcase.",
+          isFeatured: true,
+        }));
+        // Show uploaded featured photos first, followed by default photos
+        setSlides([...formatted, ...DEFAULT_IMAGES]);
+      } else {
+        setSlides(DEFAULT_IMAGES);
+      }
+    } catch {
+      // Keep defaults on fetch error
+      setSlides(DEFAULT_IMAGES);
+    }
   }, []);
 
+  useEffect(() => {
+    loadPhotos();
+
+    const handleUpdate = () => loadPhotos();
+    window.addEventListener("safar:bus-photos-updated", handleUpdate);
+    return () => window.removeEventListener("safar:bus-photos-updated", handleUpdate);
+  }, [loadPhotos]);
+
+  const goToNext = useCallback(() => {
+    setCurrentIndex((prev) => (prev + 1) % slides.length);
+  }, [slides.length]);
+
   const goToPrev = useCallback(() => {
-    setCurrentIndex((prev) => (prev - 1 + IMAGES.length) % IMAGES.length);
-  }, []);
+    setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length);
+  }, [slides.length]);
 
   const goToSlide = (index) => {
     setCurrentIndex(index);
@@ -36,7 +93,7 @@ export default function DashboardBusCarousel() {
   useEffect(() => {
     if (isPaused) return;
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReducedMotion) return; // Do not auto-play if reduced motion is requested
+    if (prefersReducedMotion) return;
 
     const timer = setInterval(goToNext, AUTOPLAY_INTERVAL_MS);
     return () => clearInterval(timer);
@@ -64,7 +121,7 @@ export default function DashboardBusCarousel() {
 
   return (
     <section 
-      className="relative w-full max-w-full overflow-hidden rounded-3xl shadow-float ring-1 ring-white/20 bg-slate-100 group mb-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan dark:ring-slate-800"
+      className="relative w-full max-w-full overflow-hidden rounded-3xl shadow-float ring-1 ring-white/20 bg-slate-900 group mb-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan dark:ring-slate-800"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onFocus={() => setIsPaused(true)}
@@ -80,9 +137,9 @@ export default function DashboardBusCarousel() {
         className="flex transition-transform duration-700 ease-in-out motion-reduce:transition-none"
         style={{ transform: `translateX(-${currentIndex * 100}%)` }}
       >
-        {IMAGES.map((img, idx) => (
+        {slides.map((img, idx) => (
           <div 
-            key={idx} 
+            key={img.id || idx} 
             className="w-full flex-shrink-0 relative aspect-[16/9] sm:aspect-[21/9] lg:max-h-[380px]"
             aria-hidden={idx !== currentIndex}
           >
@@ -94,10 +151,20 @@ export default function DashboardBusCarousel() {
               decoding="async"
             />
             {/* Subtle Gradient Overlay for Text Readability */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a]/90 via-[#0f172a]/20 to-transparent pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a]/90 via-[#0f172a]/30 to-transparent pointer-events-none" />
             <div className="absolute bottom-6 left-6 sm:bottom-10 sm:left-10 right-6 pointer-events-none">
-              <h2 className="text-white text-2xl sm:text-3xl font-display font-black tracking-tight drop-shadow-md">Safar Transportation</h2>
-              <p className="text-white/90 text-sm sm:text-base mt-2 max-w-xl font-medium drop-shadow-sm">Safe, intelligent, and convenient mobility powered by AI.</p>
+              {img.isFeatured && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 mb-2 text-xs font-bold uppercase tracking-wider bg-brand-cyan/90 text-white rounded-full shadow-sm backdrop-blur-md">
+                  <Sparkles className="h-3 w-3" />
+                  Featured Bus
+                </span>
+              )}
+              <h2 className="text-white text-2xl sm:text-3xl font-display font-black tracking-tight drop-shadow-md">
+                {img.title}
+              </h2>
+              <p className="text-white/90 text-sm sm:text-base mt-2 max-w-xl font-medium drop-shadow-sm">
+                {img.caption}
+              </p>
             </div>
           </div>
         ))}
@@ -122,15 +189,15 @@ export default function DashboardBusCarousel() {
         <ChevronRight className="w-6 h-6" />
       </button>
 
-      {/* Indicators */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3">
-        {IMAGES.map((_, idx) => (
+      {/* Slide Indicators */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2.5 z-10">
+        {slides.map((_, idx) => (
           <button
             key={idx}
             type="button"
             onClick={() => goToSlide(idx)}
-            className={`w-2.5 h-2.5 rounded-full transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${
-              idx === currentIndex ? "bg-white scale-125 w-6" : "bg-white/50 hover:bg-white/80"
+            className={`h-2.5 rounded-full transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+              idx === currentIndex ? "bg-white w-7" : "bg-white/50 hover:bg-white/80 w-2.5"
             }`}
             aria-label={`Go to slide ${idx + 1}`}
             aria-current={idx === currentIndex ? "true" : "false"}

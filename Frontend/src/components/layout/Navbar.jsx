@@ -42,9 +42,21 @@ export default function Navbar({ user, onMenu }) {
             <Bell className="h-5 w-5" />
             {unreadCount > 0 && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-brand-crimson px-1 text-[10px] font-bold text-white ring-2 ring-white dark:ring-slate-900 shadow-sm animate-pulse">{unreadCount > 9 ? "9+" : unreadCount}</span>}
           </Link>
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-maroon via-brand-purple to-brand-cyan text-sm font-bold text-white shadow-md cursor-pointer hover:shadow-glow transition duration-300 transform hover:scale-105" title={user.name}>
-            {initials || "JU"}
-          </div>
+          <Link to={`/${user.role}/profile`} title={`View Profile (${user.name})`}>
+            {user.profileImage ? (
+              <img
+                src={user.profileImage}
+                alt={user.name}
+                className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-safar-teal/40 shadow-md cursor-pointer hover:shadow-glow transition duration-300 transform hover:scale-105"
+              />
+            ) : (
+              <div
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-maroon via-brand-purple to-brand-cyan text-sm font-bold text-white shadow-md cursor-pointer hover:shadow-glow transition duration-300 transform hover:scale-105"
+              >
+                {initials || "JU"}
+              </div>
+            )}
+          </Link>
         </div>
       </div>
     </header>

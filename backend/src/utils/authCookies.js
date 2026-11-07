@@ -9,13 +9,14 @@ function cookieValue(value) {
 }
 
 function serializeCookie(name, value, { path, maxAge, expires } = {}) {
+  const isProduction = env.nodeEnv === "production";
   const parts = [
     `${name}=${cookieValue(value)}`,
     `Path=${path || "/api"}`,
     "HttpOnly",
-    "SameSite=Lax",
+    isProduction ? "SameSite=None" : "SameSite=Lax",
   ];
-  if (env.nodeEnv === "production") parts.push("Secure");
+  if (isProduction) parts.push("Secure");
   if (Number.isFinite(maxAge)) parts.push(`Max-Age=${Math.max(0, Math.floor(maxAge))}`);
   if (expires) parts.push(`Expires=${expires.toUTCString()}`);
   return parts.join("; ");

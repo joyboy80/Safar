@@ -26,7 +26,27 @@ export function isLocalDevelopmentOrigin(origin) {
   }
 }
 
-export function isCorsOriginAllowed(origin, { allowedOrigins, nodeEnv }) {
-  if (!origin || allowedOrigins.includes(origin)) return true;
-  return nodeEnv !== "production" && isLocalDevelopmentOrigin(origin);
-}
+  export function isCorsOriginAllowed(origin, { allowedOrigins = [], nodeEnv } = {}) {
+    if (!origin) return true;
+    if (allowedOrigins.includes(origin)) return true;
+
+    const normalizedOrigin = origin.toLowerCase().trim();
+
+    // Support wildcard patterns like https://*.vercel.app or *.onrender.com
+    for (const allowed of allowedOrigins) {
+      const cleanAllowed = allowed.toLowerCase().trim();
+      if (cleanAllowed === "*") return true;
+      if (cleanAllowed.includes("*")) {
+        const regexPattern = "^" + cleanAllowed.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") + "$";
+        if (new RegExp(regexPattern).test(normalizedOrigin)) return true;
+      }
+    }
+
+    // If any vercel.app origin is configured in allowedOrigins, automatically allow Vercel previews
+    const hasVercelAllowed = allowedOrigins.some((o) => o.toLowerCase().includes("vercel.app"));
+    if (hasVercelAllowed && /^https:\/\/[a-z0-9-_.]+\.vercel\.app$/i.test(normalizedOrigin)) {
+      return true;
+    }
+
+    return nodeEnv !== "production" && isLocalDevelopmentOrigin(origin);
+  }

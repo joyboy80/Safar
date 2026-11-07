@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminStatusBadge from "../../components/admin/AdminStatusBadge";
 import DashboardBusCarousel from "../../components/common/DashboardBusCarousel";
+import FeaturedBusPhotosManager from "../../components/admin/FeaturedBusPhotosManager";
 import StatCard from "../../components/common/StatCard";
 import ErrorState from "../../components/common/ErrorState";
 import PageHeader from "../../components/layout/PageHeader";
@@ -39,6 +40,8 @@ export default function AdminDashboard() {
         />
 
         <DashboardBusCarousel />
+
+        <FeaturedBusPhotosManager />
 
         {error && <ErrorState title="Control center unavailable" message={error} />}
 

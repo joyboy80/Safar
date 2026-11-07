@@ -73,7 +73,10 @@ export async function createProfile(profile) {
 }
 
 export async function updateProfile(authUserId, updates) {
-  const { preferences, ...dbUpdates } = updates;
+  const { preferences, profileImage, ...dbUpdates } = updates;
+  if (profileImage !== undefined) {
+    dbUpdates.profile_image = profileImage;
+  }
   
   if (preferences) {
     const { error: metaError } = await getSupabaseAdmin().auth.admin.updateUserById(authUserId, {

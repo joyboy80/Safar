@@ -8,6 +8,12 @@ import {
 import authMiddleware from "../middleware/authMiddleware.js";
 import requireRole from "../middleware/requireRole.js";
 import { ROLES } from "../validators/authValidator.js";
+import {
+  getAdminFeaturedPhotos,
+  postAdminFeaturedPhoto,
+  deleteAdminFeaturedPhoto,
+} from "../controllers/busPhotoController.js";
+import { uploadBusPhotoMiddleware } from "../middleware/uploadMiddleware.js";
 
 const router = Router();
 router.use(authMiddleware, requireRole(ROLES.TRANSPORT_ADMIN));
@@ -41,6 +47,10 @@ router.put("/maintenance/:id", putMaintenance);
 router.get("/alerts", getAlerts);
 router.get("/overview", getOverview);
 router.get("/analytics", getAnalytics);
+
+router.get("/featured-photos", getAdminFeaturedPhotos);
+router.post("/featured-photos", uploadBusPhotoMiddleware, postAdminFeaturedPhoto);
+router.delete("/featured-photos/:id", deleteAdminFeaturedPhoto);
 
 router.get("/predictions/occupancy", getPredictionsOccupancy);
 router.get("/predictions/insights", getPredictionsInsights);

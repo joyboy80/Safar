@@ -9,14 +9,14 @@ async function startServer() {
   try {
     validateEnvironment();
     await verifySupabaseConnection();
-    app.listen(env.port, () => {
-      console.log(`Safar backend listening on http://localhost:${env.port}`);
-    });
-  } catch (error) {
-    console.error(`Safar backend failed to start: ${error.message}`);
-    process.exitCode = 1;
+      app.listen(env.port, "0.0.0.0", () => {
+        console.log(`Safar backend listening on http://0.0.0.0:${env.port}`);
+      });
+    } catch (error) {
+      console.error(`Safar backend failed to start: ${error.message}`);
+      process.exitCode = 1;
+    }
   }
-}
 
 startServer();
 // Triggered restart

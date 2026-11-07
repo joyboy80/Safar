@@ -13,3 +13,10 @@ backend/.env.*
 
 coverage/
 npm-debug.log*
+
+# Root & Deployment
+node_modules/
+.vercel/
+.env
+.env.local
+dist/
