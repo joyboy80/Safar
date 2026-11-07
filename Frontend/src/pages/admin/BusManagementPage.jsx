@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import AdminFormModal from "../../components/admin/AdminFormModal";
-import FeaturedBusPhotosManager from "../../components/admin/FeaturedBusPhotosManager";
 import Button from "../../components/common/Button";
 import EmptyState from "../../components/common/EmptyState";
 import ErrorState from "../../components/common/ErrorState";
@@ -52,7 +51,7 @@ const statusStyles = {
   Maintenance: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
 };
 
-const blankBus = (defaultRoute = "") => ({
+const blankBus = (defaultRoute = "", defaultStops = []) => ({
   id: "",
   busName: "",
   registrationNumber: "",
@@ -60,6 +59,7 @@ const blankBus = (defaultRoute = "") => ({
   capacity: 40,
   route: defaultRoute || "",
   routeId: "",
+  stops: defaultStops,
   operationalStatus: "Online",
 });
 
@@ -124,12 +124,15 @@ export default function BusManagementPage() {
   function handleOpenCreate() {
     const initialRoute = routes[0]?.name || routes[0]?.routeName || "CUET Campus - Station";
     const initialRouteId = routes[0]?.id || "";
-    setForm({ ...blankBus(initialRoute), routeId: initialRouteId });
+    const initialStops = routes[0]?.stops || ["CUET Campus", "Station"];
+    setForm({ ...blankBus(initialRoute, initialStops), routeId: initialRouteId });
   }
 
   function handleOpenEdit(bus) {
     const existingRoute = bus.route || bus.routeName || routes[0]?.name || routes[0]?.routeName || "";
-    const existingRouteId = bus.routeId || routes.find((r) => (r.name || r.routeName) === existingRoute)?.id || "";
+    const matched = routes.find((r) => (r.name || r.routeName) === existingRoute);
+    const existingRouteId = bus.routeId || matched?.id || "";
+    const existingStops = Array.isArray(bus.stops) && bus.stops.length > 0 ? bus.stops : (matched?.stops || []);
     setForm({
       id: bus.id,
       busName: bus.name || bus.busName || "",
@@ -138,6 +141,7 @@ export default function BusManagementPage() {
       capacity: bus.capacity || 40,
       route: existingRoute,
       routeId: existingRouteId,
+      stops: existingStops,
       operationalStatus: bus.operationalStatus || bus.status || "Online",
     });
   }
@@ -183,6 +187,7 @@ export default function BusManagementPage() {
         capacity: Number(form.capacity),
         route: form.route,
         routeId: form.routeId || undefined,
+        stops: form.stops || [],
         operationalStatus: form.operationalStatus,
       });
 
@@ -365,19 +370,52 @@ export default function BusManagementPage() {
                       </p>
                     </div>
 
-                    {/* Assigned Route Badge */}
-                    <div className="mt-3.5 flex items-center gap-2.5 rounded-xl border border-teal-100 bg-teal-50/60 p-2.5 dark:border-teal-900/40 dark:bg-teal-950/20">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-500/10 text-teal-600 dark:bg-teal-400/20 dark:text-teal-400">
-                        <MapPin className="h-4 w-4" />
+                    {/* Assigned Route & Stoppages */}
+                    <div className="mt-3.5 space-y-2 rounded-xl border border-teal-100 bg-teal-50/60 p-2.5 dark:border-teal-900/40 dark:bg-teal-950/20">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-500/10 text-teal-600 dark:bg-teal-400/20 dark:text-teal-400">
+                          <MapPin className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700/70 dark:text-teal-400/70">
+                            Assigned Route
+                          </p>
+                          <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-200" title={bus.route || bus.routeName || "Not Assigned"}>
+                            {bus.route || bus.routeName || "Not Assigned"}
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700/70 dark:text-teal-400/70">
-                          Assigned Route
-                        </p>
-                        <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-200" title={bus.route || bus.routeName || "Not Assigned"}>
-                          {bus.route || bus.routeName || "Not Assigned"}
-                        </p>
-                      </div>
+
+                      {/* Stoppages list */}
+                      {Array.isArray(bus.stops) && bus.stops.length > 0 && (
+                        <div className="border-t border-teal-200/50 pt-2 dark:border-teal-900/40">
+                          <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                            <span>Stoppages ({bus.stops.length}):</span>
+                            <span className="font-mono text-[9px] text-teal-600 dark:text-teal-400">
+                              {bus.stops[0]} → {bus.stops[bus.stops.length - 1]}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {bus.stops.map((stop, i) => (
+                              <span
+                                key={i}
+                                className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                  i === 0
+                                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold"
+                                    : i === bus.stops.length - 1
+                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-bold"
+                                    : "bg-white text-slate-600 border border-slate-200/60 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                                }`}
+                              >
+                                {stop}
+                                {i < bus.stops.length - 1 && (
+                                  <span className="ml-1 text-slate-300 dark:text-slate-600">›</span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Capacity */}
@@ -417,11 +455,6 @@ export default function BusManagementPage() {
             })}
           </div>
         )}
-
-        {/* Featured Photos Manager */}
-        <div className="mt-10 pt-6 border-t border-slate-200 dark:border-slate-800">
-          <FeaturedBusPhotosManager />
-        </div>
       </div>
 
       {/* Add / Edit Bus Modal */}
@@ -541,6 +574,7 @@ export default function BusManagementPage() {
                     ...form,
                     route: e.target.value,
                     routeId: selected?.id || "",
+                    stops: selected?.stops || [],
                   });
                 }}
                 required
@@ -559,6 +593,29 @@ export default function BusManagementPage() {
                   );
                 })}
               </select>
+
+              {/* Live Preview of Route Stoppages */}
+              {Array.isArray(form.stops) && form.stops.length > 0 && (
+                <div className="mt-2.5 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                  <div className="flex items-center justify-between mb-1.5 font-semibold text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>Route Stoppages ({form.stops.length})</span>
+                    <span className="font-mono text-[10px] text-teal-600 dark:text-teal-400">
+                      {form.stops[0]} → {form.stops[form.stops.length - 1]}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {form.stops.map((st, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                      >
+                        {st}
+                        {idx < form.stops.length - 1 && <span className="ml-1 text-slate-400">→</span>}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-3">

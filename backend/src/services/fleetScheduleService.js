@@ -108,7 +108,11 @@ export async function listAllBuses() {
 
     const route = b.route || busMeta.route || "Not Assigned";
     const routeId = busMeta.routeId || b.route_id || null;
-    const stops = b.stops || busMeta.stops || [];
+    let stops = Array.isArray(b.stops) && b.stops.length > 0 ? b.stops : (busMeta.stops || []);
+    if (!stops.length && route) {
+      const predefined = PREDEFINED_ROUTES.find((r) => r.name?.toLowerCase() === route.toLowerCase() || r.id === routeId);
+      if (predefined?.stops) stops = predefined.stops;
+    }
 
     return {
       id: b.id,
@@ -142,7 +146,13 @@ export async function saveBusRecord(input) {
   const capacity = Number.parseInt(input.capacity, 10);
   const route = String(input.route || input.routeName || "CUET Campus - Station").trim();
   const routeId = input.routeId || null;
-  const stops = Array.isArray(input.stops) && input.stops.length > 0 ? input.stops : ["CUET Campus", "Station"];
+  let stops = Array.isArray(input.stops) && input.stops.length > 0 ? input.stops : null;
+  if (!stops) {
+    const predefined = PREDEFINED_ROUTES.find(
+      (r) => r.id === routeId || r.name?.toLowerCase() === route.toLowerCase()
+    );
+    stops = predefined?.stops?.length ? predefined.stops : ["CUET Campus", "Station"];
+  }
   const description = String(input.description || "").trim();
   const imageUrl = input.imageUrl || null;
   const operationalStatus = [BUS_STATUSES.ONLINE, BUS_STATUSES.RUNNING, BUS_STATUSES.STOPPED, BUS_STATUSES.MAINTENANCE]
@@ -209,6 +219,7 @@ export async function saveBusRecord(input) {
     category,
     route,
     routeId,
+    stops,
     description,
     imageUrl,
     registrationNumber,

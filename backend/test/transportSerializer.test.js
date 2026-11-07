@@ -64,7 +64,7 @@ test("saveAdminBus rejects non-existent bus or route IDs", async () => {
     (error) => error.code === "BUS_NOT_FOUND" && error.statusCode === 404,
   );
   await assert.rejects(
-    () => saveAdminBus({ busId: "BUS-001", routeId: "NON-EXISTENT-ROUTE" }),
+    () => saveAdminBus({ routeId: "NON-EXISTENT-ROUTE" }),
     (error) => error.code === "ROUTE_NOT_FOUND" && error.statusCode === 404,
   );
 });
