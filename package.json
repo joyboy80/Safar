@@ -4,7 +4,12 @@
   "private": true,
   "description": "Safar Campus Transportation Platform (Backend + Frontend)",
   "type": "module",
+  "workspaces": [
+    "Frontend",
+    "backend"
+  ],
   "scripts": {
+    "postinstall": "npm --prefix Frontend install",
     "dev": "node scripts/dev-local.js",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix Frontend run dev",

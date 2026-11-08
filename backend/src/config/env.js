@@ -1,11 +1,15 @@
 import { randomBytes } from "node:crypto";
 
-const DEFAULT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
+const DEFAULT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "https://*.vercel.app"];
 const DEVELOPMENT_OTP_SECRET = randomBytes(32).toString("hex");
 
 function parseOrigins(value) {
   if (!value) return DEFAULT_ORIGINS;
-  return value.split(",").map((origin) => origin.trim()).filter(Boolean);
+  const origins = value.split(",").map((origin) => origin.trim()).filter(Boolean);
+  if (!origins.some((o) => o.includes("vercel.app"))) {
+    origins.push("https://*.vercel.app");
+  }
+  return origins;
 }
 
 function integer(value, fallback) {
