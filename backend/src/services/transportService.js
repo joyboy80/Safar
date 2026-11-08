@@ -580,6 +580,7 @@ export async function listTracking(user, busId) {
     availableSeats: Math.max(0, (row.buses?.capacity || 0) - (counts.get(row.bus_id) || 0)),
     progress: row.progress,
     updatedAt: row.updated_at,
+    isLive: isTrackingRowLive(row),
   }));
 }
 
@@ -639,7 +640,23 @@ export async function passengerManifest(user, tripId) {
 
 export async function tripSummary(user, tripId) {
   const trip = (await driverTrips(user)).find((item) => item.id === tripId);
-  if (!trip) throw new AppError(404, "Assigned trip not found.", "TRIP_NOT_FOUND");
+  if (!trip) {
+    const schedule = await findDriverSchedule(user, tripId);
+    if (!schedule) throw new AppError(404, "Assigned trip not found.", "TRIP_NOT_FOUND");
+    const { data, error } = await getSupabaseAdmin().from("reservations").select("*").eq("trip_id", tripId).eq("travel_date", serviceDate());
+    if (error) throw transportError(error, "read passenger manifest");
+    const scheduleActive = (data || []).map(serializeReservation).filter((item) => item.boardingStatus !== "Cancelled");
+    const scheduleBoarded = scheduleActive.filter((item) => item.boardingStatus === "Boarded").length;
+    const status = schedule.scheduleStatus === "Running" ? "In Progress"
+      : ["Completed", "Cancelled"].includes(schedule.scheduleStatus) ? schedule.scheduleStatus : "Upcoming";
+    return {
+      trip: { ...schedule, route: schedule.routeName, status },
+      passengerCount: scheduleActive.length,
+      boarded: scheduleBoarded,
+      waiting: scheduleActive.length - scheduleBoarded,
+      capacity: schedule.capacity || 0,
+    };
+  }
   const passengers = await passengerManifest(user, tripId);
   const active = passengers.filter((item) => item.boardingStatus !== "Cancelled");
   const boarded = active.filter((item) => item.boardingStatus === "Boarded").length;
@@ -659,22 +676,61 @@ export async function updateDriverTrip(user, tripId, status) {
   return { ...serializeTrip(data), date: serviceDate(), status };
 }
 
+const LIVE_TRACKING_STATUSES = new Set(["Running", "On Time", "Delayed"]);
+const LIVE_TRACKING_WINDOW_MS = 3 * 60 * 1000;
+
+function isTrackingRowLive(row) {
+  if (!LIVE_TRACKING_STATUSES.has(row.status)) return false;
+  if (!Number.isFinite(Number(row.latitude)) || !Number.isFinite(Number(row.longitude)) || row.latitude === null || row.longitude === null) return false;
+  const updatedAt = Date.parse(row.updated_at || "");
+  return Number.isFinite(updatedAt) && Date.now() - updatedAt < LIVE_TRACKING_WINDOW_MS;
+}
+
+async function findDriverSchedule(user, tripId) {
+  // Lazy import avoids a circular import (fleetScheduleService imports this module).
+  const { getDriverSchedules } = await import("./fleetScheduleService.js");
+  const driverId = user.authUserId || user.id || user.profileId;
+  const schedules = await getDriverSchedules(driverId).catch(() => []);
+  return schedules.find((item) => item.id === tripId) || null;
+}
+
+function optionalNumber(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
 export async function updateDriverLocation(user, input) {
-  const trip = (await driverTrips(user)).find((item) => item.id === input.tripId);
-  if (!trip) throw new AppError(403, "This trip is not assigned to the current Driver.", "TRIP_NOT_ASSIGNED");
+  const legacyTrip = (await driverTrips(user).catch(() => [])).find((item) => item.id === input.tripId);
+  let busId = legacyTrip?.busId;
+  if (!busId) {
+    const schedule = await findDriverSchedule(user, input.tripId);
+    if (schedule && schedule.scheduleStatus !== "Running") {
+      throw new AppError(409, "Start this trip before sharing live location.", "TRIP_NOT_RUNNING");
+    }
+    busId = schedule?.busId;
+  }
+  if (!busId) throw new AppError(403, "This trip is not assigned to the current Driver.", "TRIP_NOT_ASSIGNED");
+
   const row = {
-    bus_id: trip.busId,
+    bus_id: busId,
     latitude: Number(input.latitude),
     longitude: Number(input.longitude),
     location_label: input.locationLabel || "Live GPS position",
-    next_stop: input.nextStop || null,
-    eta_minutes: Math.max(0, Number(input.etaMinutes || 0)),
     speed: Math.max(0, Math.round(Number(input.speed || 0))),
     status: input.status || "Running",
-    delay_minutes: Math.max(0, Number(input.delayMinutes || 0)),
-    progress: Math.min(1, Math.max(0, Number(input.progress || 0))),
     updated_at: new Date().toISOString(),
   };
+  // Only overwrite route progress fields when the driver app actually sends them,
+  // so admin-entered next stop / ETA / delay values are not wiped by each GPS ping.
+  if (input.nextStop) row.next_stop = String(input.nextStop);
+  const eta = optionalNumber(input.etaMinutes);
+  if (eta !== undefined) row.eta_minutes = Math.max(0, Math.round(eta));
+  const delay = optionalNumber(input.delayMinutes);
+  if (delay !== undefined) row.delay_minutes = Math.max(0, Math.round(delay));
+  const progress = optionalNumber(input.progress);
+  if (progress !== undefined) row.progress = Math.min(1, Math.max(0, progress));
+
   const { data, error } = await getSupabaseAdmin().from("tracking_positions").upsert(row).select("*").single();
   if (error) throw transportError(error, "publish live location");
   return data;

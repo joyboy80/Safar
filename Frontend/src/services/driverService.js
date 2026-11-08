@@ -6,7 +6,8 @@ export async function getAssignedTrips() {
 
 export async function getCurrentTrip() {
   const trips = await getAssignedTrips();
-  return trips.find((trip) => ["Boarding", "In Progress"].includes(trip.status))
+  return trips.find((trip) => trip.status === "In Progress")
+    || trips.find((trip) => trip.status === "Boarding")
     || trips.find((trip) => trip.status === "Upcoming")
     || trips[0]
     || null;

@@ -41,6 +41,7 @@ import SettingsPage from "./pages/shared/SettingsPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import RoleBasedRoute from "./routes/RoleBasedRoute";
 import { ROLES } from "./utils/roles";
+import { DriverLiveTrackingLayout } from "./context/DriverLiveTrackingContext";
 
 export default function App() {
   return (
@@ -105,16 +106,18 @@ export default function App() {
           <Route path="/staff/:section" element={<PlaceholderPage />} />
         </Route>
         <Route element={<RoleBasedRoute allowedRoles={[ROLES.DRIVER]} />}>
-          <Route path="/driver/dashboard" element={<DriverDashboard />} />
-          <Route path="/driver/trips" element={<DriverTripsPage />} />
-          <Route path="/driver/passengers" element={<PassengerListPage />} />
-          <Route path="/driver/scanner" element={<QRScannerPage />} />
-          <Route path="/driver/bus-condition" element={<BusConditionPage />} />
-          <Route path="/driver/delay" element={<DelayReportPage />} />
-          <Route path="/driver/emergency" element={<EmergencyPage />} />
-          <Route path="/driver/live-trip" element={<LiveTripPage />} />
-          <Route path="/driver/profile" element={<ProfilePage role={ROLES.DRIVER} />} />
-          <Route path="/driver/:section" element={<PlaceholderPage />} />
+          <Route element={<DriverLiveTrackingLayout />}>
+            <Route path="/driver/dashboard" element={<DriverDashboard />} />
+            <Route path="/driver/trips" element={<DriverTripsPage />} />
+            <Route path="/driver/passengers" element={<PassengerListPage />} />
+            <Route path="/driver/scanner" element={<QRScannerPage />} />
+            <Route path="/driver/bus-condition" element={<BusConditionPage />} />
+            <Route path="/driver/delay" element={<DelayReportPage />} />
+            <Route path="/driver/emergency" element={<EmergencyPage />} />
+            <Route path="/driver/live-trip" element={<LiveTripPage />} />
+            <Route path="/driver/profile" element={<ProfilePage role={ROLES.DRIVER} />} />
+            <Route path="/driver/:section" element={<PlaceholderPage />} />
+          </Route>
         </Route>
         <Route element={<RoleBasedRoute allowedRoles={[ROLES.ADMIN]} />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />

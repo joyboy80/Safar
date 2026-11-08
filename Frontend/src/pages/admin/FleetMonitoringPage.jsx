@@ -8,12 +8,18 @@ import LiveStatusBadge from "../../components/tracking/LiveStatusBadge";
 import PageHeader from "../../components/layout/PageHeader";
 import useLiveTracking from "../../hooks/useLiveTracking";
 import DashboardLayout from "../../layouts/DashboardLayout";
+import { formatUpdatedAgo, isBusLive } from "../../utils/liveTracking";
 
 export default function FleetMonitoringPage() {
   const { buses, connectionStatus, error } = useLiveTracking();
   const [selectedId, setSelectedId] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const activeBuses = useMemo(() => buses.filter((bus) => !["Offline", "Completed"].includes(bus.status)), [buses]);
+  const activeBuses = useMemo(() => buses
+    .filter((bus) => !["Offline", "Completed"].includes(bus.status))
+    .map((bus, index) => ({ bus, index, live: isBusLive(bus) }))
+    .sort((a, b) => Number(b.live) - Number(a.live) || a.index - b.index)
+    .map((item) => item.bus), [buses]);
+  const liveCount = activeBuses.filter((bus) => isBusLive(bus)).length;
   const visibleBuses = useMemo(() => activeBuses.filter((bus) => statusFilter === "All" || bus.status === statusFilter), [activeBuses, statusFilter]);
 
   useEffect(() => {
@@ -37,7 +43,7 @@ export default function FleetMonitoringPage() {
         {!error && connectionStatus === "connected" && !activeBuses.length && <EmptyState title="No active buses" message="The backend is not reporting any active fleet positions." />}
 
         {activeBuses.length > 0 && <><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-semibold text-safar-gray">{visibleBuses.length} buses visible</p>
+          <p className="flex items-center gap-2 text-sm font-semibold text-safar-gray">{visibleBuses.length} buses visible{liveCount > 0 && <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{liveCount} live GPS</span>}</p>
           <label className="flex items-center gap-2 text-sm font-semibold text-safar-ink">Status<select className="focus-ring h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>{statuses.map((status) => <option key={status}>{status}</option>)}</select></label>
         </div>
 
@@ -54,6 +60,7 @@ export default function FleetMonitoringPage() {
                   [BusFront, "Next stop", selected.nextStop],
                   [Gauge, "Speed", `${selected.speed} km/h`],
                   [Timer, "ETA", `${selected.etaMinutes} min${selected.delayMinutes ? ` (+${selected.delayMinutes} delayed)` : ""}`],
+                  [Navigation, "GPS signal", isBusLive(selected) ? "Live — driver is sharing location" : `Last update ${formatUpdatedAgo(selected.updatedAt)}`],
                 ].map(([Icon, label, value]) => <div key={label} className="flex gap-3 py-4"><Icon className="h-5 w-5 shrink-0 text-safar-teal" /><div className="min-w-0"><dt className="text-xs font-bold uppercase text-safar-gray">{label}</dt><dd className="mt-1 break-words text-sm font-semibold text-safar-ink">{value}</dd></div></div>)}
               </dl>
             </aside>

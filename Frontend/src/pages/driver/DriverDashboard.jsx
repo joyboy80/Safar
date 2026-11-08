@@ -1,6 +1,6 @@
 import { AlertTriangle, BusFront, CirclePlay, Gauge, QrCode, Siren, UserCheck, Users } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Badge from "../../components/common/Badge";
 import Button from "../../components/common/Button";
 import DashboardBusCarousel from "../../components/common/DashboardBusCarousel";
@@ -9,6 +9,7 @@ import StatCard from "../../components/common/StatCard";
 import TripStatusBadge from "../../components/driver/TripStatusBadge";
 import PageHeader from "../../components/layout/PageHeader";
 import { useAuth } from "../../context/AuthContext";
+import { notifyDriverTripUpdated } from "../../context/DriverLiveTrackingContext";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import { getCurrentTrip, getTripSummary, updateTripStatus } from "../../services/driverService";
 
@@ -22,6 +23,7 @@ const actions = [
 
 export default function DriverDashboard() {
   const { setToast, user } = useAuth();
+  const navigate = useNavigate();
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState("");
 
@@ -40,9 +42,15 @@ export default function DriverDashboard() {
   }, []);
 
   async function startTrip() {
-    await updateTripStatus(summary.trip.id, "In Progress");
-    setToast({ type: "success", message: "Trip started. Live trip status is now active." });
-    await loadDashboard();
+    try {
+      await updateTripStatus(summary.trip.id, "In Progress");
+    } catch (requestError) {
+      setToast({ type: "error", message: requestError.message });
+      return;
+    }
+    notifyDriverTripUpdated();
+    setToast({ type: "success", message: "Trip started. Live fleet is on — allow location access to share your bus position." });
+    navigate("/driver/live-trip");
   }
 
   const trip = summary?.trip;
