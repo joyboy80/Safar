@@ -219,7 +219,7 @@ function DriverLiveIndicator() {
   const problem = gpsStatus === "error" || gpsStatus === "sync-error";
   return (
     <Link to="/driver/live-trip"
-      className={`focus-ring fixed bottom-5 right-5 z-40 flex items-center gap-2.5 rounded-full px-4 py-2.5 text-sm font-bold shadow-float ring-1 backdrop-blur-xl transition hover:-translate-y-0.5 ${problem ? "bg-red-600/95 text-white ring-red-500" : "bg-white/95 text-safar-ink ring-black/5 dark:bg-slate-900/95 dark:text-slate-100 dark:ring-white/10"}`}>
+      className={`focus-ring fixed bottom-[88px] right-4 z-40 flex max-w-[calc(100vw-2rem)] sm:right-6 items-center gap-2.5 rounded-full px-4 py-2.5 text-sm font-bold shadow-float ring-1 backdrop-blur-xl transition hover:-translate-y-0.5 ${problem ? "bg-red-600/95 text-white ring-red-500" : "bg-white/95 text-safar-ink ring-black/5 dark:bg-slate-900/95 dark:text-slate-100 dark:ring-white/10"}`}>
       <span className="relative flex h-2.5 w-2.5">
         {!problem && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />}
         <span className={`relative h-2.5 w-2.5 rounded-full ${problem ? "bg-white" : "bg-emerald-500"}`} />

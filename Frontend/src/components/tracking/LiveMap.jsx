@@ -15,6 +15,7 @@ const MAP_STYLES = {
 };
 const BUS_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6 2 7"/><path d="M10 6h4"/><path d="m22 7-2-1"/><rect width="16" height="16" x="4" y="3" rx="2"/><path d="M4 11h16"/><path d="M8 15h.01"/><path d="M16 15h.01"/><path d="M6 19v2"/><path d="M18 21v-2"/></svg>';
 
+const isCompactScreen = () => typeof window !== "undefined" && window.matchMedia?.("(max-width: 639px)").matches;
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 function createMarkerElement() {
@@ -78,6 +79,15 @@ export default function LiveMap({ buses: allBuses, selectedId, highlightedId, on
   const [styleChoice, setStyleChoice] = useState(null);
   const [following, setFollowing] = useState(follow);
   const [now, setNow] = useState(() => Date.now());
+  const [compact, setCompact] = useState(isCompactScreen);
+
+  useEffect(() => {
+    const query = window.matchMedia?.("(max-width: 639px)");
+    if (!query) return undefined;
+    const onChange = () => setCompact(query.matches);
+    query.addEventListener?.("change", onChange);
+    return () => query.removeEventListener?.("change", onChange);
+  }, []);
 
   onSelectRef.current = onSelect;
   busesRef.current = buses;
@@ -120,7 +130,7 @@ export default function LiveMap({ buses: allBuses, selectedId, highlightedId, on
       return undefined;
     }
 
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true, showCompass: !isCompactScreen() }), "top-right");
     let geolocate = null;
     if (showUserLocation) {
       geolocate = new mapboxgl.GeolocateControl({
@@ -183,7 +193,8 @@ export default function LiveMap({ buses: allBuses, selectedId, highlightedId, on
     }
     const bounds = new mapboxgl.LngLatBounds(points[0], points[0]);
     points.forEach((point) => bounds.extend(point));
-    map.fitBounds(bounds, { padding: { top: 90, bottom: 130, left: 60, right: 70 }, maxZoom: 15.5, duration });
+    const padding = isCompactScreen() ? { top: 80, bottom: 120, left: 40, right: 60 } : { top: 90, bottom: 150, left: 60, right: 70 };
+    map.fitBounds(bounds, { padding, maxZoom: 15.5, duration });
   }, []);
 
   // Keep one marker per bus and glide it to new positions instead of re-creating markers.
@@ -252,31 +263,33 @@ export default function LiveMap({ buses: allBuses, selectedId, highlightedId, on
   const selectedLive = selected ? isBusLive(selected, now) : false;
   const glass = "bg-white/90 ring-1 ring-black/5 backdrop-blur-md shadow-sm dark:bg-slate-900/85 dark:ring-white/10";
 
-  return <div className={`relative isolate min-h-[320px] w-full overflow-hidden rounded-3xl bg-slate-100 shadow-float ring-1 ring-slate-200/60 sm:min-h-[440px] dark:bg-slate-800 dark:ring-slate-700/50 ${className}`}>
+  return <div className={`relative isolate h-[62vh] min-h-[380px] max-h-[620px] w-full overflow-hidden rounded-2xl bg-slate-100 shadow-float ring-1 ring-slate-200/60 sm:h-auto sm:max-h-none sm:min-h-[440px] sm:rounded-3xl dark:bg-slate-800 dark:ring-slate-700/50 ${className}`}>
     <div ref={elementRef} className="absolute inset-0" />
 
     {error && <div className="absolute inset-0 grid place-items-center bg-slate-50/80 backdrop-blur-sm p-6 text-center z-10 dark:bg-slate-900/80"><div><MapPin className="mx-auto h-10 w-10 text-brand-maroon dark:text-pink-400" /><h2 className="mt-4 text-xl font-display font-bold text-safar-ink">Mapbox unavailable</h2><p className="mt-2 max-w-md text-sm leading-relaxed text-safar-gray">{error}</p></div></div>}
 
     {!error && <>
-      <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-col items-start gap-2 sm:left-4 sm:top-4">
-        <div className={`pointer-events-auto flex items-center gap-2.5 rounded-full px-3.5 py-2 text-xs font-bold text-safar-ink dark:text-slate-100 ${glass}`}>
+      <div className="pointer-events-none absolute left-2.5 top-2.5 z-10 flex max-w-[calc(100%-64px)] flex-col items-start gap-1.5 sm:left-4 sm:top-4 sm:gap-2">
+        <div className={`pointer-events-auto flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-bold text-safar-ink sm:gap-2.5 sm:px-3.5 sm:py-2 sm:text-xs dark:text-slate-100 ${glass}`}>
           <span className="relative flex h-2.5 w-2.5">
             {liveCount > 0 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />}
             <span className={`relative h-2.5 w-2.5 rounded-full ${liveCount > 0 ? "bg-emerald-500" : "bg-slate-400"}`} />
           </span>
-          {liveCount > 0 ? <span>Live GPS · {liveCount} {liveCount === 1 ? "bus" : "buses"} moving</span> : <span>Live GPS · waiting for drivers</span>}
+          {liveCount > 0
+            ? <span>Live<span className="hidden sm:inline"> GPS</span> · {liveCount} {liveCount === 1 ? "bus" : "buses"}<span className="hidden sm:inline"> moving</span></span>
+            : <span><span className="hidden sm:inline">Live GPS · </span>Waiting for drivers</span>}
         </div>
-        <div className={`pointer-events-auto flex rounded-full p-1 text-[11px] font-bold ${glass}`} role="group" aria-label="Map style">
+        <div className={`pointer-events-auto flex rounded-full p-0.5 text-[10px] font-bold sm:p-1 sm:text-[11px] ${glass}`} role="group" aria-label="Map style">
           {Object.entries(MAP_STYLES).map(([key, item]) => (
             <button key={key} type="button" onClick={() => setStyleChoice(key)} aria-pressed={activeStyle === key}
-              className={`rounded-full px-2.5 py-1 transition ${activeStyle === key ? "bg-safar-teal text-white shadow-sm" : "text-safar-gray hover:text-safar-ink dark:text-slate-300"}`}>
+              className={`rounded-full px-2 py-1 transition sm:px-2.5 ${activeStyle === key ? "bg-safar-teal text-white shadow-sm" : "text-safar-gray hover:text-safar-ink dark:text-slate-300"}`}>
               {item.label}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="absolute right-2.5 top-[150px] z-10 flex flex-col gap-2">
+      <div className={`absolute right-2.5 z-10 flex flex-col gap-2 ${compact ? "top-[118px]" : "top-[150px]"}`}>
         <button type="button" onClick={() => { setFollowing(false); fitAll(); }} title="Show all buses" aria-label="Show all buses"
           className={`focus-ring grid h-9 w-9 place-items-center rounded-xl text-safar-ink transition hover:text-safar-teal dark:text-slate-100 ${glass}`}>
           <Maximize2 className="h-4 w-4" />
@@ -295,19 +308,24 @@ export default function LiveMap({ buses: allBuses, selectedId, highlightedId, on
         <div className={`rounded-2xl px-4 py-3 text-center text-sm font-semibold text-safar-gray ${glass}`}>Waiting for the first GPS fix from the driver…</div>
       </div>}
 
-      {legend.length > 1 && <div className={`absolute bottom-4 left-4 z-10 hidden max-w-[45%] flex-wrap gap-x-3 gap-y-1 rounded-2xl px-3 py-2 text-[11px] font-semibold text-safar-gray dark:text-slate-300 md:flex ${glass}`}>
+      {legend.length > 1 && <div className={`absolute bottom-10 left-4 z-10 hidden max-w-[45%] flex-wrap gap-x-3 gap-y-1 rounded-2xl px-3 py-2 text-[11px] font-semibold text-safar-gray dark:text-slate-300 md:flex ${glass}`}>
         {legend.map((status) => <span key={status} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS[status] || STATUS_COLORS.Running }} />{status}</span>)}
       </div>}
 
-      {selected && <div className="absolute bottom-4 left-4 right-4 z-10 rounded-2xl bg-white/95 p-4 shadow-float ring-1 ring-black/5 backdrop-blur-xl sm:left-auto sm:w-80 dark:bg-slate-900/95 dark:ring-white/10 animate-slide-up">
-        <div className="flex items-start justify-between gap-3">
+      {selected && <div className="absolute bottom-9 left-2.5 right-2.5 z-10 rounded-2xl bg-white/95 p-3 shadow-float ring-1 ring-black/5 backdrop-blur-xl sm:bottom-10 sm:left-auto sm:right-4 sm:w-80 sm:p-4 dark:bg-slate-900/95 dark:ring-white/10 animate-slide-up">
+        <div className="flex items-start justify-between gap-2 sm:gap-3">
           <div className="min-w-0">
-            <p className="truncate font-display font-bold text-safar-ink"><BusFront className="mr-2 inline h-5 w-5 text-brand-maroon dark:text-pink-400" />{selected.name}</p>
-            <p className="mt-1 truncate text-xs font-medium text-safar-gray">{selected.currentLocation?.label || "Location not reported"}</p>
+            <p className="truncate font-display text-sm font-bold text-safar-ink sm:text-base"><BusFront className="mr-1.5 inline h-4 w-4 text-brand-maroon sm:mr-2 sm:h-5 sm:w-5 dark:text-pink-400" />{selected.name}</p>
+            <p className="mt-0.5 truncate text-[11px] font-medium text-safar-gray sm:mt-1 sm:text-xs">{selected.currentLocation?.label || "Location not reported"}</p>
           </div>
           <LiveStatusBadge status={selected.status} />
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+        <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-bold text-safar-ink sm:hidden">
+          <span className="flex items-center gap-1"><Gauge className="h-3.5 w-3.5 text-safar-teal" />{selected.speed ?? 0} km/h</span>
+          <span className="flex items-center gap-1"><Timer className="h-3.5 w-3.5 text-safar-teal" />ETA {selected.etaMinutes ?? "—"} min</span>
+          <span className="flex items-center gap-1"><span className={`h-2 w-2 rounded-full ${selectedLive ? "bg-emerald-500" : "bg-slate-400"}`} />{selectedLive ? "Live" : formatUpdatedAgo(selected.updatedAt, now)}</span>
+        </div>
+        <div className="mt-3 hidden grid-cols-3 gap-2 text-center sm:grid">
           <div className="rounded-xl bg-slate-50 px-2 py-2 dark:bg-slate-800"><Gauge className="mx-auto h-4 w-4 text-safar-teal" /><p className="mt-1 text-xs font-bold text-safar-ink">{selected.speed ?? 0} km/h</p></div>
           <div className="rounded-xl bg-slate-50 px-2 py-2 dark:bg-slate-800"><Timer className="mx-auto h-4 w-4 text-safar-teal" /><p className="mt-1 text-xs font-bold text-safar-ink">{selected.etaMinutes ?? "—"} min</p></div>
           <div className="rounded-xl bg-slate-50 px-2 py-2 dark:bg-slate-800">
